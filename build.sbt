@@ -16,10 +16,18 @@ lazy val commonSettings = Seq(
     "GitHub Packages" at s"https://maven.pkg.github.com/Eligio-Taveras/repcheck-pipeline-models"
   ),
   publishMavenStyle := true,
-  credentials += {
-    val ghUser  = sys.env.getOrElse("GITHUB_ACTOR", "")
-    val ghToken = sys.env.getOrElse("GITHUB_TOKEN", "")
-    Credentials("GitHub Package Registry", "maven.pkg.github.com", ghUser, ghToken)
+  credentials ++= {
+    val envCreds = for {
+      user  <- sys.env.get("GITHUB_ACTOR")
+      token <- sys.env.get("GITHUB_TOKEN")
+    } yield Credentials("GitHub Package Registry", "maven.pkg.github.com", user, token)
+
+    val fileCreds = {
+      val f = Path.userHome / ".sbt" / ".github-packages-credentials"
+      if (f.exists) Some(Credentials(f)) else None
+    }
+
+    envCreds.orElse(fileCreds).toSeq
   },
   resolvers += "GitHub Packages - shared-models" at "https://maven.pkg.github.com/Eligio-Taveras/repcheck-shared-models",
   libraryDependencies ++= Seq(
@@ -64,7 +72,8 @@ lazy val repcheckPipelineModels = (project in file("repcheck-pipeline-models"))
     commonSettings,
     name := "repcheck-pipeline-models",
     libraryDependencies ++= circe ++ pureConfig ++ fs2 ++ doobie ++ catsEffect ++ testDeps,
-    libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.0",
+    libraryDependencies += "com.h2database" % "h2" % "2.2.224" % Test,
+    libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.1",
     // Circe semi-auto derivation for large case classes
     scalacOptions += "-Xmax-inlines:64"
   )

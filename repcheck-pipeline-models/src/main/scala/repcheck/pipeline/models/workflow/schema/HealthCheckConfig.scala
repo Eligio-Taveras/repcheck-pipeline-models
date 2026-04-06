@@ -1,7 +1,6 @@
 package repcheck.pipeline.models.workflow.schema
 
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Decoder, Encoder}
+import io.circe.{Decoder, Encoder, HCursor, Json}
 
 final case class ProbeConfig(
   initialDelaySeconds: Int = 0,
@@ -25,8 +24,23 @@ object ProbeConfig {
       Right(())
     }
 
-  implicit val encoder: Encoder[ProbeConfig] = deriveEncoder[ProbeConfig]
-  implicit val decoder: Decoder[ProbeConfig] = deriveDecoder[ProbeConfig]
+  implicit val encoder: Encoder[ProbeConfig] = Encoder.instance { p =>
+    Json.obj(
+      "initialDelaySeconds" -> Json.fromInt(p.initialDelaySeconds),
+      "timeoutSeconds"      -> Json.fromInt(p.timeoutSeconds),
+      "periodSeconds"       -> Json.fromInt(p.periodSeconds),
+      "failureThreshold"    -> Json.fromInt(p.failureThreshold),
+    )
+  }
+
+  implicit val decoder: Decoder[ProbeConfig] = Decoder.instance { (c: HCursor) =>
+    for {
+      ids <- c.get[Int]("initialDelaySeconds")
+      ts  <- c.get[Int]("timeoutSeconds")
+      ps  <- c.get[Int]("periodSeconds")
+      ft  <- c.get[Int]("failureThreshold")
+    } yield ProbeConfig(ids, ts, ps, ft)
+  }
 
 }
 
@@ -37,7 +51,18 @@ final case class HealthCheckConfig(
 
 object HealthCheckConfig {
 
-  implicit val encoder: Encoder[HealthCheckConfig] = deriveEncoder[HealthCheckConfig]
-  implicit val decoder: Decoder[HealthCheckConfig] = deriveDecoder[HealthCheckConfig]
+  implicit val encoder: Encoder[HealthCheckConfig] = Encoder.instance { h =>
+    Json.obj(
+      "startupProbe"  -> Encoder.encodeOption[ProbeConfig].apply(h.startupProbe),
+      "livenessProbe" -> Encoder.encodeOption[ProbeConfig].apply(h.livenessProbe),
+    )
+  }
+
+  implicit val decoder: Decoder[HealthCheckConfig] = Decoder.instance { (c: HCursor) =>
+    for {
+      sp <- c.get[Option[ProbeConfig]]("startupProbe")
+      lp <- c.get[Option[ProbeConfig]]("livenessProbe")
+    } yield HealthCheckConfig(sp, lp)
+  }
 
 }

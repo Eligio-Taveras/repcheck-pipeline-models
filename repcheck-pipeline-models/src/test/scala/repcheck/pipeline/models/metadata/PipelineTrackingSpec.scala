@@ -188,6 +188,98 @@ class PipelineTrackingSpec extends AnyFlatSpec with Matchers {
     decoded shouldBe Right(resultDO)
   }
 
+  // ── PipelineRunSummary Circe round-trip ──
+
+  "PipelineRunSummary" should "round-trip through JSON" in {
+    val summary = PipelineRunSummary(
+      runId = UUID.fromString("00000000-0000-0000-0000-000000000001"),
+      pipelineName = "test-pipeline",
+      status = PipelineStatus.CompletedWithErrors,
+      startedAt = Instant.parse("2024-06-01T10:00:00Z"),
+      completedAt = Instant.parse("2024-06-01T10:30:00Z"),
+      itemsProcessed = 100,
+      itemsSucceeded = 95,
+      itemsFailed = 5,
+      errorCounts = Map("timeout" -> 3, "auth" -> 2),
+    )
+    val json    = summary.asJson.noSpaces
+    val decoded = decode[PipelineRunSummary](json)
+    decoded shouldBe Right(summary)
+  }
+
+  it should "round-trip with empty errorCounts" in {
+    val summary = PipelineRunSummary(
+      runId = UUID.fromString("00000000-0000-0000-0000-000000000002"),
+      pipelineName = "clean-run",
+      status = PipelineStatus.Completed,
+      startedAt = Instant.parse("2024-06-01T10:00:00Z"),
+      completedAt = Instant.parse("2024-06-01T10:15:00Z"),
+      itemsProcessed = 50,
+      itemsSucceeded = 50,
+      itemsFailed = 0,
+      errorCounts = Map.empty,
+    )
+    val json    = summary.asJson.noSpaces
+    val decoded = decode[PipelineRunSummary](json)
+    decoded shouldBe Right(summary)
+  }
+
+  // ── decodeAccumulating coverage ──
+
+  "PipelineRunDO decodeAccumulating" should "decode valid JSON" in {
+    val runDO = PipelineRunDO(
+      runId = UUID.fromString("00000000-0000-0000-0000-000000000001"),
+      pipelineName = "test",
+      status = PipelineStatus.Completed,
+      startedAt = Instant.parse("2024-06-01T10:00:00Z"),
+      completedAt = Some(Instant.parse("2024-06-01T10:30:00Z")),
+      itemsProcessed = 10,
+      itemsSucceeded = 10,
+      itemsFailed = 0,
+      errorSummary = None,
+      snapshotPath = None,
+      trigger = PipelineTrigger.Manual,
+      createdAt = Instant.parse("2024-06-01T10:00:00Z"),
+    )
+    val json   = runDO.asJson
+    val result = implicitly[io.circe.Decoder[PipelineRunDO]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "ProcessingResultDO decodeAccumulating" should "decode valid JSON" in {
+    val resultDO = ProcessingResultDO(
+      resultId = UUID.fromString("00000000-0000-0000-0000-000000000010"),
+      runId = UUID.fromString("00000000-0000-0000-0000-000000000001"),
+      correlationId = UUID.fromString("00000000-0000-0000-0000-000000000020"),
+      entityType = "bill",
+      entityId = "HR-1234",
+      status = ResultStatus.Succeeded,
+      errorMessage = None,
+      errorClass = None,
+      processedAt = Instant.parse("2024-06-01T10:15:00Z"),
+    )
+    val json   = resultDO.asJson
+    val result = implicitly[io.circe.Decoder[ProcessingResultDO]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "PipelineRunSummary decodeAccumulating" should "decode valid JSON" in {
+    val summary = PipelineRunSummary(
+      runId = UUID.fromString("00000000-0000-0000-0000-000000000001"),
+      pipelineName = "test",
+      status = PipelineStatus.Completed,
+      startedAt = Instant.parse("2024-06-01T10:00:00Z"),
+      completedAt = Instant.parse("2024-06-01T10:15:00Z"),
+      itemsProcessed = 50,
+      itemsSucceeded = 50,
+      itemsFailed = 0,
+      errorCounts = Map.empty,
+    )
+    val json   = summary.asJson
+    val result = implicitly[io.circe.Decoder[PipelineRunSummary]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
   // ── Doobie instances compile check ──
 
   "Doobie instances" should "resolve Get/Put for PipelineStatus" in {
@@ -224,6 +316,60 @@ class PipelineTrackingSpec extends AnyFlatSpec with Matchers {
     implicitly[doobie.Read[ProcessingResultDO]]
     implicitly[doobie.Write[ProcessingResultDO]]
     succeed
+  }
+
+  // ── Doobie Get/Put round-trip via H2 ──
+
+  import cats.effect.IO
+  import cats.effect.unsafe.implicits.global
+  import doobie._
+  import doobie.implicits._
+
+  private val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
+    driver = "org.h2.Driver",
+    url = "jdbc:h2:mem:pipeline_tracking_test;DB_CLOSE_DELAY=-1",
+    user = "sa",
+    password = "",
+    logHandler = None,
+  )
+
+  "Doobie Get/Put for PipelineStatus" should "round-trip via H2" in {
+    val status = PipelineStatus.Running
+    val result = sql"SELECT ${status.toString}".query[PipelineStatus].unique.transact(xa).unsafeRunSync()
+    result shouldBe status
+  }
+
+  it should "round-trip all variants via H2" in {
+    PipelineStatus.values.foreach { status =>
+      val result = sql"SELECT ${status.toString}".query[PipelineStatus].unique.transact(xa).unsafeRunSync()
+      result shouldBe status
+    }
+  }
+
+  "Doobie Get/Put for ResultStatus" should "round-trip via H2" in {
+    val status = ResultStatus.Succeeded
+    val result = sql"SELECT ${status.toString}".query[ResultStatus].unique.transact(xa).unsafeRunSync()
+    result shouldBe status
+  }
+
+  it should "round-trip all variants via H2" in {
+    ResultStatus.values.foreach { status =>
+      val result = sql"SELECT ${status.toString}".query[ResultStatus].unique.transact(xa).unsafeRunSync()
+      result shouldBe status
+    }
+  }
+
+  "Doobie Get/Put for PipelineTrigger" should "round-trip via H2" in {
+    val trigger = PipelineTrigger.Scheduled
+    val result  = sql"SELECT ${trigger.toString}".query[PipelineTrigger].unique.transact(xa).unsafeRunSync()
+    result shouldBe trigger
+  }
+
+  it should "round-trip all variants via H2" in {
+    PipelineTrigger.values.foreach { trigger =>
+      val result = sql"SELECT ${trigger.toString}".query[PipelineTrigger].unique.transact(xa).unsafeRunSync()
+      result shouldBe trigger
+    }
   }
 
 }

@@ -233,6 +233,59 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     }
   }
 
+  // ── decodeAccumulating coverage ──
+
+  "WorkflowRunDO decodeAccumulating" should "decode valid JSON" in {
+    val runId = UUID.randomUUID()
+    val now   = Instant.parse("2024-06-01T12:00:00Z")
+    val dobj = WorkflowRunDO(
+      workflowRunId = runId,
+      workflowName = "test",
+      workflowDefinitionPath = "gs://bucket/wf.json",
+      status = WorkflowRunStatus.Running,
+      triggeredBy = "scheduler",
+      startedAt = Some(now),
+      completedAt = None,
+      createdAt = now,
+    )
+    val json   = dobj.asJson
+    val result = implicitly[io.circe.Decoder[WorkflowRunDO]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "WorkflowRunStepDO decodeAccumulating" should "decode valid JSON" in {
+    val now = Instant.parse("2024-06-01T12:00:00Z")
+    val dobj = WorkflowRunStepDO(
+      workflowRunId = UUID.randomUUID(),
+      stepName = "step-a",
+      status = WorkflowStepStatus.Completed,
+      pipelineRunId = None,
+      retryCount = 0,
+      maxRetries = 3,
+      originalMessage = None,
+      startedAt = Some(now),
+      completedAt = Some(now),
+      errorMessage = None,
+      createdAt = now,
+      updatedAt = now,
+    )
+    val json   = dobj.asJson
+    val result = implicitly[io.circe.Decoder[WorkflowRunStepDO]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  // ── deriveFromSteps additional branch: Failed + Pending ──
+
+  "WorkflowRunStatus.deriveFromSteps" should "return Failed for mix of Failed and Pending" in {
+    val statuses = List(WorkflowStepStatus.Failed, WorkflowStepStatus.Pending, WorkflowStepStatus.Failed)
+    WorkflowRunStatus.deriveFromSteps(statuses) shouldBe WorkflowRunStatus.Failed
+  }
+
+  it should "return Running for Completed + Pending (no Running/Failed)" in {
+    val statuses = List(WorkflowStepStatus.Completed, WorkflowStepStatus.Pending)
+    WorkflowRunStatus.deriveFromSteps(statuses) shouldBe WorkflowRunStatus.Running
+  }
+
   // ── Doobie instances compile check ──
 
   "Doobie instances" should "resolve Get/Put for WorkflowRunStatus" in {
@@ -263,6 +316,35 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     implicitly[doobie.Read[WorkflowRunStepDO]]
     implicitly[doobie.Write[WorkflowRunStepDO]]
     succeed
+  }
+
+  // ── Doobie Get/Put round-trip via H2 ──
+
+  import cats.effect.IO
+  import cats.effect.unsafe.implicits.global
+  import doobie._
+  import doobie.implicits._
+
+  private val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
+    driver = "org.h2.Driver",
+    url = "jdbc:h2:mem:workflow_state_test;DB_CLOSE_DELAY=-1",
+    user = "sa",
+    password = "",
+    logHandler = None,
+  )
+
+  "Doobie Get/Put for WorkflowRunStatus" should "round-trip all variants via H2" in {
+    WorkflowRunStatus.values.foreach { status =>
+      val result = sql"SELECT ${status.toString}".query[WorkflowRunStatus].unique.transact(xa).unsafeRunSync()
+      result shouldBe status
+    }
+  }
+
+  "Doobie Get/Put for WorkflowStepStatus" should "round-trip all variants via H2" in {
+    WorkflowStepStatus.values.foreach { status =>
+      val result = sql"SELECT ${status.toString}".query[WorkflowStepStatus].unique.transact(xa).unsafeRunSync()
+      result shouldBe status
+    }
   }
 
 }

@@ -171,6 +171,124 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
     result.foreach(wf => wf.schedule shouldBe Some("0 9 * * *"))
   }
 
+  // ── Decode from raw JSON string (decoder $anon coverage) ──
+
+  "ContainerConfig decoder" should "decode from raw JSON with all fields" in {
+    val json =
+      """{"image":"gcr.io/proj/img:v1","command":["sh","-c"],"args":["run"],"env":{"K":"V"},"secretMounts":{"p":"s"}}"""
+    val result = decode[ContainerConfig](json)
+    result.isRight shouldBe true
+    result.foreach { c =>
+      c.image shouldBe "gcr.io/proj/img:v1"
+      c.command shouldBe Some(List("sh", "-c"))
+      c.args shouldBe List("run")
+      c.env shouldBe Map("K" -> "V")
+      c.secretMounts shouldBe Map("p" -> "s")
+    }
+  }
+
+  it should "decode with null optional fields" in {
+    val json   = """{"image":"img:v1","command":null,"args":[],"env":{},"secretMounts":{}}"""
+    val result = decode[ContainerConfig](json)
+    result.isRight shouldBe true
+    result.foreach(_.command shouldBe None)
+  }
+
+  "ResourceConfig decoder" should "decode from raw JSON with all fields" in {
+    val json   = """{"cpu":"4","memory":"2Gi","gpu":"nvidia-t4"}"""
+    val result = decode[ResourceConfig](json)
+    result.isRight shouldBe true
+    result.foreach { r =>
+      r.cpu shouldBe "4"
+      r.memory shouldBe "2Gi"
+      r.gpu shouldBe Some("nvidia-t4")
+    }
+  }
+
+  it should "decode with null gpu" in {
+    val json   = """{"cpu":"1","memory":"512Mi","gpu":null}"""
+    val result = decode[ResourceConfig](json)
+    result.isRight shouldBe true
+    result.foreach(_.gpu shouldBe None)
+  }
+
+  "ExecutionConfig decoder" should "decode from raw JSON with all fields" in {
+    val json   = """{"timeout":"30m","maxRetries":5,"taskCount":10,"parallelism":4}"""
+    val result = decode[ExecutionConfig](json)
+    result.isRight shouldBe true
+    result.foreach { e =>
+      e.timeout shouldBe "30m"
+      e.maxRetries shouldBe 5
+      e.taskCount shouldBe 10
+      e.parallelism shouldBe 4
+    }
+  }
+
+  "NetworkConfig decoder" should "decode from raw JSON with all fields" in {
+    val json   = """{"vpcConnector":"vpc-1","vpcEgress":"all","cloudSqlConnections":["conn-1","conn-2"]}"""
+    val result = decode[NetworkConfig](json)
+    result.isRight shouldBe true
+    result.foreach { n =>
+      n.vpcConnector shouldBe Some("vpc-1")
+      n.cloudSqlConnections shouldBe List("conn-1", "conn-2")
+    }
+  }
+
+  it should "decode with null optional fields" in {
+    val json   = """{"vpcConnector":null,"vpcEgress":null,"cloudSqlConnections":[]}"""
+    val result = decode[NetworkConfig](json)
+    result.isRight shouldBe true
+    result.foreach(_.vpcConnector shouldBe None)
+  }
+
+  "VolumeConfig decoder" should "decode from raw JSON with all fields" in {
+    val json   = """{"gcsVolumes":{"/data":"gs://b"},"inMemoryVolumes":{"/tmp":"128Mi"}}"""
+    val result = decode[VolumeConfig](json)
+    result.isRight shouldBe true
+    result.foreach { v =>
+      v.gcsVolumes shouldBe Map("/data" -> "gs://b")
+      v.inMemoryVolumes shouldBe Map("/tmp" -> "128Mi")
+    }
+  }
+
+  "MetadataConfig decoder" should "decode from raw JSON with all fields" in {
+    val json   = """{"labels":{"app":"rc"},"annotations":{"note":"test"}}"""
+    val result = decode[MetadataConfig](json)
+    result.isRight shouldBe true
+    result.foreach { m =>
+      m.labels shouldBe Map("app" -> "rc")
+      m.annotations shouldBe Map("note" -> "test")
+    }
+  }
+
+  "HealthCheckConfig decoder" should "decode with both probes from raw JSON" in {
+    val json =
+      """{"startupProbe":{"initialDelaySeconds":5,"timeoutSeconds":2,"periodSeconds":10,"failureThreshold":3},"livenessProbe":{"initialDelaySeconds":0,"timeoutSeconds":1,"periodSeconds":10,"failureThreshold":3}}"""
+    val result = decode[HealthCheckConfig](json)
+    result.isRight shouldBe true
+    result.foreach { h =>
+      h.startupProbe.isDefined shouldBe true
+      h.livenessProbe.isDefined shouldBe true
+      h.startupProbe.foreach(_.initialDelaySeconds shouldBe 5)
+    }
+  }
+
+  it should "decode with null probes" in {
+    val json   = """{"startupProbe":null,"livenessProbe":null}"""
+    val result = decode[HealthCheckConfig](json)
+    result.isRight shouldBe true
+    result.foreach { h =>
+      h.startupProbe shouldBe None
+      h.livenessProbe shouldBe None
+    }
+  }
+
+  "IdentityConfig decoder" should "decode from raw JSON" in {
+    val json   = """{"serviceAccount":"test@proj.iam.gserviceaccount.com"}"""
+    val result = decode[IdentityConfig](json)
+    result shouldBe Right(IdentityConfig(serviceAccount = "test@proj.iam.gserviceaccount.com"))
+  }
+
   // ── Config sub-type Circe round-trips ──
 
   "ContainerConfig" should "round-trip through JSON" in {
@@ -249,6 +367,125 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
     result shouldBe Right(config)
   }
 
+  // ── ProbeConfig validation branch coverage ──
+
+  "ProbeConfig.validate" should "return Right for valid probe with defaults" in {
+    ProbeConfig.validate(ProbeConfig(), "valid-step") shouldBe Right(())
+  }
+
+  it should "return Left for negative initialDelaySeconds" in {
+    val result = ProbeConfig.validate(ProbeConfig(initialDelaySeconds = -1), "s")
+    result.isLeft shouldBe true
+    result.left.foreach(_ should include("initialDelaySeconds"))
+  }
+
+  it should "return Left for periodSeconds = 0" in {
+    val result = ProbeConfig.validate(ProbeConfig(periodSeconds = 0), "s")
+    result.isLeft shouldBe true
+    result.left.foreach(_ should include("periodSeconds"))
+  }
+
+  it should "return Left for periodSeconds > 240" in {
+    val result = ProbeConfig.validate(ProbeConfig(periodSeconds = 241), "s")
+    result.isLeft shouldBe true
+    result.left.foreach(_ should include("periodSeconds"))
+  }
+
+  it should "return Left for failureThreshold = 0" in {
+    val result = ProbeConfig.validate(ProbeConfig(failureThreshold = 0), "s")
+    result.isLeft shouldBe true
+    result.left.foreach(_ should include("failureThreshold"))
+  }
+
+  it should "return Right for boundary values" in {
+    ProbeConfig.validate(
+      ProbeConfig(initialDelaySeconds = 0, timeoutSeconds = 1, periodSeconds = 1, failureThreshold = 1),
+      "s",
+    ) shouldBe Right(())
+    ProbeConfig.validate(
+      ProbeConfig(initialDelaySeconds = 240, timeoutSeconds = 3600, periodSeconds = 240, failureThreshold = 100),
+      "s",
+    ) shouldBe Right(())
+  }
+
+  // ── ProbeConfig and HealthCheckConfig Circe round-trip ──
+
+  // ── HealthCheckConfig encoder/decoder error accumulation ──
+
+  "ProbeConfig decodeAccumulating" should "accumulate multiple errors" in {
+    val json = io.circe.parser
+      .parse("""{"initialDelaySeconds":"bad","timeoutSeconds":"bad","periodSeconds":"bad","failureThreshold":"bad"}""")
+      .getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[ProbeConfig]].decodeAccumulating(json.hcursor)
+    result.isInvalid shouldBe true
+  }
+
+  "HealthCheckConfig decodeAccumulating" should "accumulate errors for invalid startupProbe and livenessProbe" in {
+    val json   = io.circe.parser.parse("""{"startupProbe":"bad","livenessProbe":"bad"}""").getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[HealthCheckConfig]].decodeAccumulating(json.hcursor)
+    result.isInvalid shouldBe true
+  }
+
+  it should "decode with only startupProbe present" in {
+    val json = io.circe.parser
+      .parse(
+        """{"startupProbe":{"initialDelaySeconds":5,"timeoutSeconds":2,"periodSeconds":10,"failureThreshold":3}}"""
+      )
+      .getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[HealthCheckConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  it should "decode with only livenessProbe present" in {
+    val json = io.circe.parser
+      .parse(
+        """{"livenessProbe":{"initialDelaySeconds":0,"timeoutSeconds":1,"periodSeconds":10,"failureThreshold":3}}"""
+      )
+      .getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[HealthCheckConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "ProbeConfig encoder" should "encode all fields" in {
+    val probe = ProbeConfig(5, 10, 30, 5)
+    val json  = probe.asJson
+    json.hcursor.get[Int]("initialDelaySeconds") shouldBe Right(5)
+    json.hcursor.get[Int]("timeoutSeconds") shouldBe Right(10)
+    json.hcursor.get[Int]("periodSeconds") shouldBe Right(30)
+    json.hcursor.get[Int]("failureThreshold") shouldBe Right(5)
+  }
+
+  "HealthCheckConfig encoder" should "encode with both probes present" in {
+    val config = HealthCheckConfig(
+      startupProbe = Some(ProbeConfig(5, 2, 10, 3)),
+      livenessProbe = Some(ProbeConfig(0, 1, 10, 3)),
+    )
+    val json = config.asJson
+    json.hcursor.downField("startupProbe").focus.isDefined shouldBe true
+    json.hcursor.downField("livenessProbe").focus.isDefined shouldBe true
+  }
+
+  it should "encode with both probes absent" in {
+    val config = HealthCheckConfig(startupProbe = None, livenessProbe = None)
+    val json   = config.asJson
+    val result = json.hcursor.downField("startupProbe").as[Option[ProbeConfig]]
+    result shouldBe Right(None)
+  }
+
+  "ProbeConfig" should "round-trip through JSON" in {
+    val probe   = ProbeConfig(initialDelaySeconds = 5, timeoutSeconds = 10, periodSeconds = 30, failureThreshold = 5)
+    val json    = probe.asJson.noSpaces
+    val decoded = decode[ProbeConfig](json)
+    decoded shouldBe Right(probe)
+  }
+
+  it should "round-trip defaults through JSON" in {
+    val probe   = ProbeConfig()
+    val json    = probe.asJson.noSpaces
+    val decoded = decode[ProbeConfig](json)
+    decoded shouldBe Right(probe)
+  }
+
   // ── WorkflowDefinition Circe round-trip ──
 
   "WorkflowDefinition" should "round-trip through JSON" in {
@@ -264,6 +501,96 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
   }
 
   // ── WorkflowStepDefinition Circe round-trip ──
+
+  // ── decodeAccumulating coverage for schema config types ──
+
+  "ProbeConfig decodeAccumulating" should "decode valid JSON" in {
+    val json   = ProbeConfig(5, 2, 10, 3).asJson
+    val result = implicitly[io.circe.Decoder[ProbeConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  it should "accumulate errors for invalid JSON" in {
+    val json   = io.circe.parser.parse("""{"initialDelaySeconds":"bad"}""").getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[ProbeConfig]].decodeAccumulating(json.hcursor)
+    result.isInvalid shouldBe true
+  }
+
+  "HealthCheckConfig decodeAccumulating" should "decode valid JSON" in {
+    val config = HealthCheckConfig(startupProbe = Some(ProbeConfig()), livenessProbe = None)
+    val json   = config.asJson
+    val result = implicitly[io.circe.Decoder[HealthCheckConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  it should "accumulate errors for invalid JSON" in {
+    val json   = io.circe.parser.parse("""{"startupProbe":"bad"}""").getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[HealthCheckConfig]].decodeAccumulating(json.hcursor)
+    result.isInvalid shouldBe true
+  }
+
+  "ContainerConfig decodeAccumulating" should "decode valid JSON" in {
+    val config = ContainerConfig(image = "img:v1")
+    val json   = config.asJson
+    val result = implicitly[io.circe.Decoder[ContainerConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "ResourceConfig decodeAccumulating" should "decode valid JSON" in {
+    val config = ResourceConfig(cpu = "2", memory = "1Gi", gpu = Some("nvidia-t4"))
+    val json   = config.asJson
+    val result = implicitly[io.circe.Decoder[ResourceConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "ExecutionConfig decodeAccumulating" should "decode valid JSON" in {
+    val config = ExecutionConfig(timeout = "30m", maxRetries = 5, taskCount = 10, parallelism = 4)
+    val json   = config.asJson
+    val result = implicitly[io.circe.Decoder[ExecutionConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "NetworkConfig decodeAccumulating" should "decode valid JSON" in {
+    val config = NetworkConfig(vpcConnector = Some("vpc"), cloudSqlConnections = List("conn"))
+    val json   = config.asJson
+    val result = implicitly[io.circe.Decoder[NetworkConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "VolumeConfig decodeAccumulating" should "decode valid JSON" in {
+    val config = VolumeConfig(gcsVolumes = Map("/data" -> "gs://b"))
+    val json   = config.asJson
+    val result = implicitly[io.circe.Decoder[VolumeConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "MetadataConfig decodeAccumulating" should "decode valid JSON" in {
+    val config = MetadataConfig(labels = Map("k" -> "v"))
+    val json   = config.asJson
+    val result = implicitly[io.circe.Decoder[MetadataConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "IdentityConfig decodeAccumulating" should "decode valid JSON" in {
+    val config = IdentityConfig(serviceAccount = "sa@p.iam")
+    val json   = config.asJson
+    val result = implicitly[io.circe.Decoder[IdentityConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "WorkflowDefinition decodeAccumulating" should "decode valid JSON" in {
+    val wf     = WorkflowDefinition("wf-1", "test", List(minimalStep("s")), None)
+    val json   = wf.asJson
+    val result = implicitly[io.circe.Decoder[WorkflowDefinition]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "WorkflowStepDefinition decodeAccumulating" should "decode valid JSON" in {
+    val step   = minimalStep("step-a")
+    val json   = step.asJson
+    val result = implicitly[io.circe.Decoder[WorkflowStepDefinition]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
 
   "WorkflowStepDefinition" should "round-trip through JSON with all fields" in {
     val step = WorkflowStepDefinition(

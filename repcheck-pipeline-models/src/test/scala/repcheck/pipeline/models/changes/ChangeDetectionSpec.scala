@@ -158,6 +158,64 @@ class ChangeDetectionSpec extends AnyFlatSpec with Matchers {
     decoded shouldBe Right(result)
   }
 
+  // ── EntityChangeConfig Circe round-trip ──
+
+  "EntityChangeConfig" should "round-trip BillMetadata through JSON" in {
+    val json    = EntityChangeConfig.BillMetadata.asJson.noSpaces
+    val decoded = decode[EntityChangeConfig](json)
+    decoded shouldBe Right(EntityChangeConfig.BillMetadata)
+  }
+
+  it should "round-trip Vote through JSON" in {
+    val json    = EntityChangeConfig.Vote.asJson.noSpaces
+    val decoded = decode[EntityChangeConfig](json)
+    decoded shouldBe Right(EntityChangeConfig.Vote)
+  }
+
+  it should "round-trip Analysis through JSON" in {
+    val json    = EntityChangeConfig.Analysis.asJson.noSpaces
+    val decoded = decode[EntityChangeConfig](json)
+    decoded shouldBe Right(EntityChangeConfig.Analysis)
+  }
+
+  it should "round-trip BillTextVersion through JSON" in {
+    val json    = EntityChangeConfig.BillTextVersion.asJson.noSpaces
+    val decoded = decode[EntityChangeConfig](json)
+    decoded shouldBe Right(EntityChangeConfig.BillTextVersion)
+  }
+
+  it should "round-trip Member through JSON" in {
+    val json    = EntityChangeConfig.Member.asJson.noSpaces
+    val decoded = decode[EntityChangeConfig](json)
+    decoded shouldBe Right(EntityChangeConfig.Member)
+  }
+
+  it should "round-trip Amendment through JSON" in {
+    val json    = EntityChangeConfig.Amendment.asJson.noSpaces
+    val decoded = decode[EntityChangeConfig](json)
+    decoded shouldBe Right(EntityChangeConfig.Amendment)
+  }
+
+  it should "round-trip Score through JSON" in {
+    val json    = EntityChangeConfig.Score.asJson.noSpaces
+    val decoded = decode[EntityChangeConfig](json)
+    decoded shouldBe Right(EntityChangeConfig.Score)
+  }
+
+  // ── EntityChangeConfig decodeAccumulating ──
+
+  "EntityChangeConfig decodeAccumulating" should "decode valid JSON via accumulating" in {
+    val json   = EntityChangeConfig.Vote.asJson
+    val result = implicitly[io.circe.Decoder[EntityChangeConfig]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  it should "accumulate errors for invalid JSON" in {
+    val json   = io.circe.parser.parse("""{"entityType":123}""").getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[EntityChangeConfig]].decodeAccumulating(json.hcursor)
+    result.isInvalid shouldBe true
+  }
+
   // ── Negative: unknown strategy string → parse error ──
 
   "ChangeDetectionStrategy decoder" should "fail for unknown strategy string" in {

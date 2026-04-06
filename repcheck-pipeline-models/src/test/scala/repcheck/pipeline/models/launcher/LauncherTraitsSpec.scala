@@ -84,6 +84,52 @@ class LauncherTraitsSpec extends AnyFlatSpec with Matchers {
 
   // ── ResolvedStepConfig ──
 
+  // ── ResolvedStepConfig ──
+
+  "ResolvedStepConfig decoder" should "decode from raw JSON" in {
+    val json =
+      """{"stepName":"s","container":{"image":"img:v1","command":null,"args":[],"env":{},"secretMounts":{}},"resources":{"cpu":"2","memory":"1Gi","gpu":null},"execution":{"timeout":"15m","maxRetries":3,"taskCount":1,"parallelism":1},"networking":{"vpcConnector":null,"vpcEgress":null,"cloudSqlConnections":[]},"volumes":{"gcsVolumes":{},"inMemoryVolumes":{}},"identity":{"serviceAccount":"sa@p.iam"},"healthChecks":{"startupProbe":null,"livenessProbe":null},"metadata":{"labels":{},"annotations":{}}}"""
+    val result = decode[ResolvedStepConfig](json)
+    result.isRight shouldBe true
+    result.foreach { c =>
+      c.stepName shouldBe "s"
+      c.container.image shouldBe "img:v1"
+      c.resources.cpu shouldBe "2"
+      c.execution.maxRetries shouldBe 3
+    }
+  }
+
+  "LaunchResult decodeAccumulating" should "decode valid JSON" in {
+    val result  = LaunchResult(success = true, jobName = Some("job-1"), errorMessage = None)
+    val json    = result.asJson
+    val decoded = implicitly[io.circe.Decoder[LaunchResult]].decodeAccumulating(json.hcursor)
+    decoded.isValid shouldBe true
+  }
+
+  "ResolvedStepConfig decodeAccumulating" should "decode valid JSON" in {
+    import repcheck.pipeline.models.workflow.schema._
+    val config = ResolvedStepConfig(
+      stepName = "s",
+      container = ContainerConfig(image = "img:v1"),
+      resources = ResourceConfig(cpu = "2", memory = "1Gi"),
+      execution = ExecutionConfig(timeout = "15m", maxRetries = 3, taskCount = 1, parallelism = 1),
+      networking = NetworkConfig(),
+      volumes = VolumeConfig(),
+      identity = IdentityConfig(serviceAccount = "sa@p.iam"),
+      healthChecks = HealthCheckConfig(),
+      metadata = MetadataConfig(),
+    )
+    val json    = config.asJson
+    val decoded = implicitly[io.circe.Decoder[ResolvedStepConfig]].decodeAccumulating(json.hcursor)
+    decoded.isValid shouldBe true
+  }
+
+  it should "accumulate errors for invalid JSON" in {
+    val json   = io.circe.parser.parse("""{"stepName":123}""").getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[ResolvedStepConfig]].decodeAccumulating(json.hcursor)
+    result.isInvalid shouldBe true
+  }
+
   "ResolvedStepConfig" should "round-trip through JSON" in {
     import repcheck.pipeline.models.workflow.schema._
 

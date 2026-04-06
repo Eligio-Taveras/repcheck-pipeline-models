@@ -9,6 +9,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      packages: read
+      contents: read
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
 
     steps:
       - name: Checkout code
@@ -28,16 +35,12 @@ jobs:
 
       - name: Compile (includes WartRemover + tpolecat checks)
         run: sbt compile
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check Scalafix rules
         run: sbt "scalafixAll --check"
 
       - name: Run tests with coverage
         run: sbt coverage test coverageReport
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5

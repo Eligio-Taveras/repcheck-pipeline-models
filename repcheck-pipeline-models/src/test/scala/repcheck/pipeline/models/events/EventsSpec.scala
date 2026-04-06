@@ -243,6 +243,98 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     }
   }
 
+  // ── Decoder-from-string tests (coverage for decoder $anon classes) ──
+
+  "BillTextIngestedEvent decoder" should "decode from raw JSON string" in {
+    val versionId = "550e8400-e29b-41d4-a716-446655440000"
+    val json =
+      s"""{"billId":"hr-1","versionId":"$versionId","congress":118,"versionCode":"ih","previousVersionCode":null,"committeeCode":"HSAG"}"""
+    val result = decode[BillTextIngestedEvent](json)
+    result.isRight shouldBe true
+    result.foreach { e =>
+      e.billId shouldBe "hr-1"
+      e.versionId shouldBe UUID.fromString(versionId)
+      e.previousVersionCode shouldBe None
+      e.committeeCode shouldBe Some("HSAG")
+    }
+  }
+
+  "AnalysisCompletedEvent decoder" should "decode from raw JSON string" in {
+    val analysisId = "550e8400-e29b-41d4-a716-446655440001"
+    val json =
+      s"""{"billId":"s-42","analysisId":"$analysisId","topics":["tax","health"],"passesExecuted":[1,2],"modelUsed":"claude-3"}"""
+    val result = decode[AnalysisCompletedEvent](json)
+    result.isRight shouldBe true
+    result.foreach { e =>
+      e.topics shouldBe List("tax", "health")
+      e.passesExecuted shouldBe List(1, 2)
+    }
+  }
+
+  "UserProfileUpdatedEvent decoder" should "decode from raw JSON string" in {
+    val userId = "550e8400-e29b-41d4-a716-446655440002"
+    val json   = s"""{"userId":"$userId","topicsChanged":["defense"]}"""
+    val result = decode[UserProfileUpdatedEvent](json)
+    result.isRight shouldBe true
+    result.foreach(_.topicsChanged shouldBe List("defense"))
+  }
+
+  "ScoringUserRequestedEvent decoder" should "decode from raw JSON string" in {
+    val userId    = "550e8400-e29b-41d4-a716-446655440003"
+    val requestId = "550e8400-e29b-41d4-a716-446655440004"
+    val json      = s"""{"userId":"$userId","requestId":"$requestId","source":"scheduled"}"""
+    val result    = decode[ScoringUserRequestedEvent](json)
+    result.isRight shouldBe true
+    result.foreach(_.source shouldBe "scheduled")
+  }
+
+  "ScoringUserCompletedEvent decoder" should "decode from raw JSON string" in {
+    val userId    = "550e8400-e29b-41d4-a716-446655440005"
+    val requestId = "550e8400-e29b-41d4-a716-446655440006"
+    val json      = s"""{"userId":"$userId","requestId":"$requestId","memberScoreCount":42,"status":"completed"}"""
+    val result    = decode[ScoringUserCompletedEvent](json)
+    result.isRight shouldBe true
+    result.foreach { e =>
+      e.memberScoreCount shouldBe 42
+      e.status shouldBe "completed"
+    }
+  }
+
+  "DecompositionCompletedEvent decoder" should "decode from raw JSON string" in {
+    val versionId = "550e8400-e29b-41d4-a716-446655440007"
+    val json      = s"""{"billId":"hr-99","versionId":"$versionId","conceptGroupCount":5,"sectionCount":12}"""
+    val result    = decode[DecompositionCompletedEvent](json)
+    result.isRight shouldBe true
+    result.foreach { e =>
+      e.conceptGroupCount shouldBe 5
+      e.sectionCount shouldBe 12
+    }
+  }
+
+  "VoteRecordedEvent decoder" should "decode from raw JSON with billId = null" in {
+    val json =
+      """{"voteId":"v-1","billId":null,"chamber":"House","date":"2024-01-15T10:30:00Z","congress":118,"isUpdate":false}"""
+    val result = decode[VoteRecordedEvent](json)
+    result.isRight shouldBe true
+    result.foreach(_.billId shouldBe None)
+  }
+
+  "DailyIngestionStartEvent decoder" should "decode from raw JSON string" in {
+    val json   = """{"date":"2024-01-15","congress":118}"""
+    val result = decode[DailyIngestionStartEvent](json)
+    result.isRight shouldBe true
+    result.foreach { e =>
+      e.date shouldBe "2024-01-15"
+      e.congress shouldBe 118
+    }
+  }
+
+  "MemberUpdatedEvent decoder" should "decode from raw JSON string" in {
+    val json   = """{"memberId":"M000355"}"""
+    val result = decode[MemberUpdatedEvent](json)
+    result shouldBe Right(MemberUpdatedEvent("M000355"))
+  }
+
   // ── EventType validation (criteria 10, 11, 16) ──
 
   "PipelineEvent.validatedDecoder" should "decode a valid eventType successfully" in {
@@ -286,6 +378,84 @@ class EventsSpec extends AnyFlatSpec with Matchers {
         err.getMessage should include("payload")
       case Right(_) => fail("expected Left")
     }
+  }
+
+  // ── decodeAccumulating coverage for each payload decoder ──
+
+  "BillTextAvailableEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = BillTextAvailableEvent("hr-1", 118, "https://example.com/text", "xml", "ih", Some("rh"))
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[BillTextAvailableEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  it should "accumulate errors for invalid JSON" in {
+    val json   = io.circe.parser.parse("""{"billId":123}""").getOrElse(io.circe.Json.Null)
+    val result = implicitly[io.circe.Decoder[BillTextAvailableEvent]].decodeAccumulating(json.hcursor)
+    result.isInvalid shouldBe true
+  }
+
+  "BillTextIngestedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = BillTextIngestedEvent("hr-1", UUID.randomUUID(), 118, "ih", None, Some("HSAG"))
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[BillTextIngestedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "DecompositionCompletedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = DecompositionCompletedEvent("hr-1", UUID.randomUUID(), 5, 12)
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[DecompositionCompletedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "VoteRecordedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = VoteRecordedEvent("v-1", Some("hr-1"), "House", Instant.parse("2024-01-15T10:30:00Z"), 118, false)
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[VoteRecordedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "AnalysisCompletedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = AnalysisCompletedEvent("hr-1", UUID.randomUUID(), List("tax"), List(1, 2), "gpt-4")
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[AnalysisCompletedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "UserProfileUpdatedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = UserProfileUpdatedEvent(UUID.randomUUID(), List("defense"))
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[UserProfileUpdatedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "MemberUpdatedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = MemberUpdatedEvent("M000355")
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[MemberUpdatedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "ScoringUserRequestedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = ScoringUserRequestedEvent(UUID.randomUUID(), UUID.randomUUID(), "web")
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[ScoringUserRequestedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "ScoringUserCompletedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = ScoringUserCompletedEvent(UUID.randomUUID(), UUID.randomUUID(), 42, "done")
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[ScoringUserCompletedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
+  "DailyIngestionStartEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = DailyIngestionStartEvent("2024-01-15", 118)
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[DailyIngestionStartEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
   }
 
   // ── EventTypes.allEventTypes ──

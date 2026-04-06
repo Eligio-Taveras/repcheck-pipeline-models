@@ -262,7 +262,91 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  "PipelineConfig with invalid HOCON" should "return a PureConfig error" in {
+  it should "load with AnalysisPassConfig as appConfig" in {
+    val hocon =
+      """
+        |parallelism = 2
+        |batch-size = 50
+        |page-size = 100
+        |retry {
+        |  max-retries = 3
+        |  initial-backoff-ms = 10
+        |  max-backoff-ms = 60000
+        |  backoff-multiplier = 2.0
+        |}
+        |app-config {
+        |  pass-1-model = "claude-3-haiku"
+        |  pass-2-model = "claude-3-sonnet"
+        |  pass-3-model = "claude-3-opus"
+        |  pass-1-enabled = true
+        |  pass-2-enabled = true
+        |  pass-3-enabled = false
+        |}
+        |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[AnalysisPassConfig]]
+    result.isRight shouldBe true
+    result.foreach { pc =>
+      pc.parallelism shouldBe 2
+      pc.batchSize shouldBe 50
+      pc.appConfig.pass3Enabled shouldBe false
+    }
+  }
+
+  it should "load with CommitteeAttributionWeights as appConfig" in {
+    val hocon =
+      """
+        |parallelism = 4
+        |batch-size = 100
+        |page-size = 250
+        |retry {
+        |  max-retries = 3
+        |  initial-backoff-ms = 10
+        |  max-backoff-ms = 60000
+        |  backoff-multiplier = 2.0
+        |}
+        |app-config {
+        |  chairman = 1.0
+        |  ranking-member = 0.7
+        |  vice-chairman = 0.6
+        |  member = 0.4
+        |}
+        |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[CommitteeAttributionWeights]]
+    result.isRight shouldBe true
+    result.foreach(pc => pc.appConfig.chairman shouldBe 1.0)
+  }
+
+  it should "support copy with modified fields" in {
+    val pc = PipelineConfig[TestAppConfig](
+      parallelism = 4,
+      batchSize = 100,
+      pageSize = 250,
+      retry = RetryConfig(),
+      appConfig = TestAppConfig(1),
+    )
+    val copied = pc.copy(parallelism = 16, batchSize = 200)
+    copied.parallelism shouldBe 16
+    copied.batchSize shouldBe 200
+    copied.pageSize shouldBe 250
+    copied.appConfig shouldBe TestAppConfig(1)
+  }
+
+  it should "implement equals and hashCode" in {
+    val a = PipelineConfig[TestAppConfig](appConfig = TestAppConfig(1))
+    val b = PipelineConfig[TestAppConfig](appConfig = TestAppConfig(1))
+    val c = PipelineConfig[TestAppConfig](appConfig = TestAppConfig(2))
+    a shouldBe b
+    a should not be c
+    a.hashCode shouldBe b.hashCode
+  }
+
+  it should "implement toString" in {
+    val pc = PipelineConfig[TestAppConfig](appConfig = TestAppConfig(42))
+    pc.toString should include("42")
+    pc.toString should include("PipelineConfig")
+  }
+
+  "PipelineConfig with invalid HOCON" should "return a PureConfig error for non-numeric parallelism" in {
     val hocon =
       s"""
          |parallelism = "not-a-number"
@@ -273,6 +357,209 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
          |}
          |app-config {
          |  x = 1
+         |}
+         |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for non-numeric batchSize" in {
+    val hocon =
+      s"""
+         |parallelism = 4
+         |batch-size = "bad"
+         |page-size = 250
+         |retry {
+         |  $retryHocon
+         |}
+         |app-config {
+         |  x = 1
+         |}
+         |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for non-numeric pageSize" in {
+    val hocon =
+      s"""
+         |parallelism = 4
+         |batch-size = 100
+         |page-size = "bad"
+         |retry {
+         |  $retryHocon
+         |}
+         |app-config {
+         |  x = 1
+         |}
+         |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for invalid retry config" in {
+    val hocon =
+      """
+        |parallelism = 4
+        |batch-size = 100
+        |page-size = 250
+        |retry {
+        |  max-retries = "bad"
+        |  initial-backoff-ms = 10
+        |  max-backoff-ms = 60000
+        |  backoff-multiplier = 2.0
+        |}
+        |app-config {
+        |  x = 1
+        |}
+        |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for non-numeric backoff-multiplier" in {
+    val hocon =
+      """
+        |parallelism = 4
+        |batch-size = 100
+        |page-size = 250
+        |retry {
+        |  max-retries = 3
+        |  initial-backoff-ms = 10
+        |  max-backoff-ms = 60000
+        |  backoff-multiplier = "bad"
+        |}
+        |app-config {
+        |  x = 1
+        |}
+        |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for missing parallelism" in {
+    val hocon =
+      s"""
+         |batch-size = 100
+         |page-size = 250
+         |retry {
+         |  $retryHocon
+         |}
+         |app-config {
+         |  x = 1
+         |}
+         |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for missing batch-size" in {
+    val hocon =
+      s"""
+         |parallelism = 4
+         |page-size = 250
+         |retry {
+         |  $retryHocon
+         |}
+         |app-config {
+         |  x = 1
+         |}
+         |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for missing page-size" in {
+    val hocon =
+      s"""
+         |parallelism = 4
+         |batch-size = 100
+         |retry {
+         |  $retryHocon
+         |}
+         |app-config {
+         |  x = 1
+         |}
+         |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for missing retry" in {
+    val hocon =
+      """
+        |parallelism = 4
+        |batch-size = 100
+        |page-size = 250
+        |app-config {
+        |  x = 1
+        |}
+        |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for missing app-config" in {
+    val hocon =
+      s"""
+         |parallelism = 4
+         |batch-size = 100
+         |page-size = 250
+         |retry {
+         |  $retryHocon
+         |}
+         |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for completely empty config" in {
+    val hocon  = ""
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for wrong retry structure" in {
+    val hocon =
+      """
+        |parallelism = 4
+        |batch-size = 100
+        |page-size = 250
+        |retry = "not-an-object"
+        |app-config {
+        |  x = 1
+        |}
+        |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for wrong app-config structure" in {
+    val hocon =
+      s"""
+         |parallelism = 4
+         |batch-size = 100
+         |page-size = 250
+         |retry {
+         |  $retryHocon
+         |}
+         |app-config = "not-an-object"
+         |""".stripMargin
+    val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
+    result.isLeft shouldBe true
+  }
+
+  it should "return a PureConfig error for invalid app-config type" in {
+    val hocon =
+      s"""
+         |parallelism = 4
+         |batch-size = 100
+         |page-size = 250
+         |retry {
+         |  $retryHocon
+         |}
+         |app-config {
+         |  x = "not-an-int"
          |}
          |""".stripMargin
     val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
