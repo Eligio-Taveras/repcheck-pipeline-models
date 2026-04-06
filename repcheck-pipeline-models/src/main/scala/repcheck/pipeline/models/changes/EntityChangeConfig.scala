@@ -3,6 +3,8 @@ package repcheck.pipeline.models.changes
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder}
 
+import repcheck.pipeline.models.events.EventTypes
+
 final case class EntityChangeConfig(
   entityType: String,
   detectionStrategy: ChangeDetectionStrategy,
@@ -23,14 +25,14 @@ object EntityChangeConfig {
     "bill_text_version",
     ChangeDetectionStrategy.UpdateDateComparison,
     PersistenceStrategy.AppendOnly,
-    Some("bill.text.available"),
+    Some(EventTypes.BillTextAvailable),
   )
 
   val Vote: EntityChangeConfig = EntityChangeConfig(
     "vote",
     ChangeDetectionStrategy.UpdateDateComparison,
     PersistenceStrategy.UpsertWithHistory,
-    Some("vote.recorded"),
+    Some(EventTypes.VoteRecorded),
   )
 
   val Member: EntityChangeConfig = EntityChangeConfig(
@@ -51,7 +53,7 @@ object EntityChangeConfig {
     "analysis",
     ChangeDetectionStrategy.AlwaysNew,
     PersistenceStrategy.AppendOnly,
-    Some("analysis.completed"),
+    Some(EventTypes.AnalysisCompleted),
   )
 
   val Score: EntityChangeConfig = EntityChangeConfig(
