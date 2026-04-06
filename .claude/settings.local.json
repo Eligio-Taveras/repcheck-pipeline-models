@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source scripts/ci-functions.sh)",
+      "Bash(pushToPR)"
+    ]
+  }
+}
