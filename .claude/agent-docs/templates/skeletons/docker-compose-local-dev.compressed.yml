@@ -1,0 +1,72 @@
+<!-- GENERATED FILE — DO NOT EDIT. Source: docs/templates/skeletons/docker-compose-local-dev.yml -->
+
+# Docker Compose — Local Development Stack
+
+Provides local infrastructure for GCP services used by RepCheck pipelines.
+
+```yaml
+version: "3.9"
+
+services:
+  # AlloyDB Omni — real AlloyDB engine with columnar engine, pgvector built-in
+  # google/alloydbomni is Google's official local distribution, identical to managed service
+  # pgvector built in — no CREATE EXTENSION needed separately
+  alloydb:
+    image: google/alloydbomni:16.8.0
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: PLACEHOLDER_DB_NAME        # e.g., repcheck
+      POSTGRES_USER: PLACEHOLDER_DB_USER      # e.g., repcheck
+      POSTGRES_PASSWORD: PLACEHOLDER_DB_PASS  # e.g., localdev
+    volumes:
+      - alloydbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U PLACEHOLDER_DB_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Pub/Sub Emulator — auto-detected when PUBSUB_EMULATOR_HOST set, no credentials needed
+  # Topics and subscriptions must be created programmatically on startup (emulator starts empty)
+  pubsub-emulator:
+    image: google/cloud-sdk:slim
+    command: >
+      gcloud beta emulators pubsub start
+      --host-port=0.0.0.0:8085
+      --project=repcheck-local
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8085/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  alloydbdata:
+    driver: local
+```
+
+## Environment Variables
+
+Applications connect via:
+- `DATABASE_URL=jdbc:postgresql://localhost:5432/PLACEHOLDER_DB_NAME`
+- `DATABASE_USER=PLACEHOLDER_DB_USER`
+- `DATABASE_PASSWORD=PLACEHOLDER_DB_PASS`
+- `PUBSUB_EMULATOR_HOST=localhost:8085`
+
+## Usage
+
+Start: `docker-compose -f docker-compose-local-dev.yml up -d`
+
+Connect to AlloyDB: `psql -h localhost -p 5432 -U PLACEHOLDER_DB_USER -d PLACEHOLDER_DB_NAME`
+
+Enable pgvector: `psql -h localhost -p 5432 -U PLACEHOLDER_DB_USER -d PLACEHOLDER_DB_NAME -c "CREATE EXTENSION IF NOT EXISTS vector;"`
+
+Stop: `docker-compose -f docker-compose-local-dev.yml down`
+
+Stop and remove data: `docker-compose -f docker-compose-local-dev.yml down -v`
+
+For non-emulatable GCP services (Cloud Scheduler, Artifact Registry), use shared dev GCP project (repcheck-dev) with namespaced resources.
