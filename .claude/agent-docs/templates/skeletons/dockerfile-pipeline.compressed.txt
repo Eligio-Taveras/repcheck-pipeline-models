@@ -1,0 +1,62 @@
+<!-- GENERATED FILE — DO NOT EDIT. Source: docs/templates/skeletons/dockerfile-pipeline.txt -->
+
+# Dockerfile — Cloud Run Job Pipeline Application
+
+Multi-stage build: JDK 21 for compilation, Distroless for runtime. Replace all PLACEHOLDER values before use.
+
+| Placeholder | Description |
+|---|---|
+| `PLACEHOLDER_PROJECT` | SBT sub-project name (e.g., bills-pipeline) |
+| `PLACEHOLDER_JAR` | Assembly JAR filename (e.g., bills-pipeline-assembly-0.1.0.jar) |
+| `PLACEHOLDER_MAIN` | Fully qualified main class (e.g., com.repcheck.BillsPipelineApp) |
+
+## Stage 1: Build
+
+```dockerfile
+FROM eclipse-temurin:21-jdk AS build
+
+WORKDIR /app
+
+COPY project/ project/
+COPY build.sbt .
+
+RUN sbt update
+
+COPY . .
+RUN sbt "PLACEHOLDER_PROJECT / assembly"
+```
+
+Docker layer caching: dependencies resolve separately from source, avoiding re-download on code changes.
+
+## Stage 2: Runtime
+
+```dockerfile
+FROM gcr.io/distroless/java21-debian12
+
+WORKDIR /app
+
+COPY --from=build /app/PLACEHOLDER_PROJECT/target/scala-3.4.1/PLACEHOLDER_JAR app.jar
+
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
+```
+
+**Distroless rationale:** No shell/package manager (~130MB vs ~300MB JRE), minimal attack surface, Google-maintained patches. Debugging via Cloud Logging (no docker exec available).
+
+**JVM tuning:** `-XX:MaxRAMPercentage=75.0` uses 75% of container memory limit; JDK 21 is container-aware by default.
+
+**No EXPOSE:** Cloud Run Jobs are batch (run, exit). Add `EXPOSE 8080` for Cloud Run Services.
+
+## .dockerignore
+
+```
+target/
+.idea/
+.bsp/
+.metals/
+.git/
+docs/
+blog/
+.claude/
+*.md
+.github/
+```

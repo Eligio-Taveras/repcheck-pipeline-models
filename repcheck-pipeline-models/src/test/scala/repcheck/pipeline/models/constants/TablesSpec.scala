@@ -1,0 +1,107 @@
+package repcheck.pipeline.models.constants
+
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import repcheck.pipeline.models.events.EventTypes
+
+class TablesSpec extends AnyFlatSpec with Matchers {
+
+  private val allTableNames: List[String] = List(
+    Tables.Members,
+    Tables.MemberTerms,
+    Tables.MemberPartyHistory,
+    Tables.Bills,
+    Tables.BillCosponsors,
+    Tables.BillSubjects,
+    Tables.BillTextVersions,
+    Tables.Votes,
+    Tables.VotePositions,
+    Tables.VoteHistory,
+    Tables.VoteHistoryPositions,
+    Tables.Amendments,
+    Tables.Committees,
+    Tables.CommitteeMembers,
+    Tables.BillCommitteeReferrals,
+    Tables.MemberHistory,
+    Tables.MemberTermHistory,
+    Tables.LisMemberMapping,
+    Tables.BillTextSections,
+    Tables.BillConceptGroups,
+    Tables.BillConceptGroupSections,
+    Tables.BillAnalyses,
+    Tables.BillConceptSummaries,
+    Tables.BillAnalysisTopics,
+    Tables.BillFindings,
+    Tables.BillFiscalEstimates,
+    Tables.AmendmentFindings,
+    Tables.FindingTypes,
+    Tables.Scores,
+    Tables.ScoreTopics,
+    Tables.ScoreCongress,
+    Tables.ScoreCongressTopics,
+    Tables.ScoreHistory,
+    Tables.ScoreHistoryCongress,
+    Tables.ScoreHistoryCongressTopics,
+    Tables.ScoreHistoryHighlights,
+    Tables.MemberBillStances,
+    Tables.Users,
+    Tables.UserPreferences,
+    Tables.QaQuestions,
+    Tables.QaQuestionTopics,
+    Tables.QaAnswerOptions,
+    Tables.QaUserResponses,
+    Tables.UserTopicPriorities,
+    Tables.UserLegislatorPairings,
+    Tables.MemberBillStanceTopics,
+    Tables.UserBillAlignments,
+    Tables.UserAmendmentAlignments,
+    Tables.StanceMaterializationStatus,
+    Tables.PipelineRuns,
+    Tables.ProcessingResults,
+    Tables.WorkflowRuns,
+    Tables.WorkflowRunSteps,
+    Tables.UsStates,
+    Tables.EventLog,
+  )
+
+  "Tables" should "have exactly 55 constants" in {
+    allTableNames.size shouldBe 55
+  }
+
+  it should "have all non-empty table name values" in {
+    allTableNames.forall(_.nonEmpty) shouldBe true
+  }
+
+  it should "have no duplicate table name values" in {
+    allTableNames.distinct.size shouldBe allTableNames.size
+  }
+
+  it should "match expected values for key constants" in {
+    Tables.Members shouldBe "members"
+    Tables.Bills shouldBe "bills"
+    Tables.Votes shouldBe "votes"
+    Tables.Amendments shouldBe "amendments"
+    Tables.Committees shouldBe "committees"
+    Tables.Scores shouldBe "scores"
+    Tables.Users shouldBe "users"
+    Tables.PipelineRuns shouldBe "pipeline_runs"
+    Tables.EventLog shouldBe "event_log"
+    Tables.LisMemberMapping shouldBe "lis_member_mapping"
+  }
+
+  // ── PipelineEventTypes re-export verification ──
+
+  "PipelineEventTypes" should "re-export all EventTypes values correctly" in {
+    PipelineEventTypes.BillTextAvailable shouldBe EventTypes.BillTextAvailable
+    PipelineEventTypes.BillTextIngested shouldBe EventTypes.BillTextIngested
+    PipelineEventTypes.DecompositionCompleted shouldBe EventTypes.DecompositionCompleted
+    PipelineEventTypes.VoteRecorded shouldBe EventTypes.VoteRecorded
+    PipelineEventTypes.AnalysisCompleted shouldBe EventTypes.AnalysisCompleted
+    PipelineEventTypes.MemberUpdated shouldBe EventTypes.MemberUpdated
+    PipelineEventTypes.UserProfileUpdated shouldBe EventTypes.UserProfileUpdated
+    PipelineEventTypes.ScoringUserRequested shouldBe EventTypes.ScoringUserRequested
+    PipelineEventTypes.ScoringUserCompleted shouldBe EventTypes.ScoringUserCompleted
+    PipelineEventTypes.DailyIngestionStart shouldBe EventTypes.DailyIngestionStart
+  }
+
+}

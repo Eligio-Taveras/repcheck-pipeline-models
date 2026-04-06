@@ -1,0 +1,347 @@
+package repcheck.pipeline.models.events
+
+import java.time.Instant
+import java.util.UUID
+
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+
+import io.circe.parser.decode
+import io.circe.syntax._
+
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+
+class EventsSpec extends AnyFlatSpec with Matchers {
+
+  // ── Round-trip serialization for each of the 10 payloads ──
+
+  "BillTextAvailableEvent" should "round-trip through JSON" in {
+    val event  = BillTextAvailableEvent("hr-1", 118, "https://example.com/text", "xml", "ih", Some("rh"))
+    val json   = event.asJson.noSpaces
+    val result = decode[BillTextAvailableEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "BillTextIngestedEvent" should "round-trip through JSON" in {
+    val versionId = UUID.randomUUID()
+    val event     = BillTextIngestedEvent("hr-1", versionId, 118, "ih", None, Some("HSAG"))
+    val json      = event.asJson.noSpaces
+    val result    = decode[BillTextIngestedEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "DecompositionCompletedEvent" should "round-trip through JSON" in {
+    val versionId = UUID.randomUUID()
+    val event     = DecompositionCompletedEvent("hr-1", versionId, 5, 12)
+    val json      = event.asJson.noSpaces
+    val result    = decode[DecompositionCompletedEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "VoteRecordedEvent" should "round-trip through JSON" in {
+    val event  = VoteRecordedEvent("vote-123", Some("hr-1"), "House", Instant.parse("2024-01-15T10:30:00Z"), 118, false)
+    val json   = event.asJson.noSpaces
+    val result = decode[VoteRecordedEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "AnalysisCompletedEvent" should "round-trip through JSON" in {
+    val analysisId = UUID.randomUUID()
+    val event      = AnalysisCompletedEvent("hr-1", analysisId, List("healthcare", "taxes"), List(1, 2, 3), "gpt-4")
+    val json       = event.asJson.noSpaces
+    val result     = decode[AnalysisCompletedEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "UserProfileUpdatedEvent" should "round-trip through JSON" in {
+    val userId = UUID.randomUUID()
+    val event  = UserProfileUpdatedEvent(userId, List("education", "defense"))
+    val json   = event.asJson.noSpaces
+    val result = decode[UserProfileUpdatedEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "MemberUpdatedEvent" should "round-trip through JSON" in {
+    val event  = MemberUpdatedEvent("M000355")
+    val json   = event.asJson.noSpaces
+    val result = decode[MemberUpdatedEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "ScoringUserRequestedEvent" should "round-trip through JSON" in {
+    val userId    = UUID.randomUUID()
+    val requestId = UUID.randomUUID()
+    val event     = ScoringUserRequestedEvent(userId, requestId, "web-app")
+    val json      = event.asJson.noSpaces
+    val result    = decode[ScoringUserRequestedEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "ScoringUserCompletedEvent" should "round-trip through JSON" in {
+    val userId    = UUID.randomUUID()
+    val requestId = UUID.randomUUID()
+    val event     = ScoringUserCompletedEvent(userId, requestId, 42, "completed")
+    val json      = event.asJson.noSpaces
+    val result    = decode[ScoringUserCompletedEvent](json)
+    result shouldBe Right(event)
+  }
+
+  "DailyIngestionStartEvent" should "round-trip through JSON" in {
+    val event  = DailyIngestionStartEvent("2024-01-15", 118)
+    val json   = event.asJson.noSpaces
+    val result = decode[DailyIngestionStartEvent](json)
+    result shouldBe Right(event)
+  }
+
+  // ── PipelineEvent envelope round-trip ──
+
+  "PipelineEvent[BillTextAvailableEvent]" should "round-trip through JSON" in {
+    val payload       = BillTextAvailableEvent("hr-1", 118, "https://example.com/text", "xml", "ih", Some("rh"))
+    val eventId       = UUID.randomUUID()
+    val correlationId = UUID.randomUUID()
+    val ts            = Instant.parse("2024-06-01T12:00:00Z")
+    val envelope = PipelineEvent("bill.text.available", payload, ts, eventId, correlationId, "bill-ingestion-pipeline")
+    val json     = envelope.asJson.noSpaces
+    val result   = decode[PipelineEvent[BillTextAvailableEvent]](json)
+    result shouldBe Right(envelope)
+  }
+
+  // ── Optional field tests ──
+
+  "VoteRecordedEvent" should "serialize with None billId for procedural votes" in {
+    val event   = VoteRecordedEvent("vote-proc-1", None, "Senate", Instant.parse("2024-03-10T14:00:00Z"), 118, false)
+    val json    = event.asJson.noSpaces
+    val decoded = decode[VoteRecordedEvent](json)
+    decoded shouldBe Right(event)
+    decoded.fold(_ => fail("decode failed"), _.billId shouldBe None)
+  }
+
+  "BillTextAvailableEvent" should "serialize with None previousVersionCode for first version" in {
+    val event   = BillTextAvailableEvent("s-42", 118, "https://example.com/text", "pdf", "ih", None)
+    val json    = event.asJson.noSpaces
+    val decoded = decode[BillTextAvailableEvent](json)
+    decoded shouldBe Right(event)
+    decoded.fold(_ => fail("decode failed"), _.previousVersionCode shouldBe None)
+  }
+
+  // ── EventTypes constant verification ──
+
+  "EventTypes" should "have correct BillTextAvailable value" in {
+    EventTypes.BillTextAvailable shouldBe "bill.text.available"
+  }
+
+  it should "have correct BillTextIngested value" in {
+    EventTypes.BillTextIngested shouldBe "bill.text.ingested"
+  }
+
+  it should "have correct DecompositionCompleted value" in {
+    EventTypes.DecompositionCompleted shouldBe "bill.decomposition.completed"
+  }
+
+  it should "have correct VoteRecorded value" in {
+    EventTypes.VoteRecorded shouldBe "vote.recorded"
+  }
+
+  it should "have correct AnalysisCompleted value" in {
+    EventTypes.AnalysisCompleted shouldBe "analysis.completed"
+  }
+
+  it should "have correct MemberUpdated value" in {
+    EventTypes.MemberUpdated shouldBe "member.updated"
+  }
+
+  it should "have correct UserProfileUpdated value" in {
+    EventTypes.UserProfileUpdated shouldBe "user.profile.updated"
+  }
+
+  it should "have correct ScoringUserRequested value" in {
+    EventTypes.ScoringUserRequested shouldBe "scoring.user.requested"
+  }
+
+  it should "have correct ScoringUserCompleted value" in {
+    EventTypes.ScoringUserCompleted shouldBe "scoring.user.completed"
+  }
+
+  it should "have correct DailyIngestionStart value" in {
+    EventTypes.DailyIngestionStart shouldBe "daily.ingestion.start"
+  }
+
+  // ── PipelineEvent field verification ──
+
+  "PipelineEvent fields" should "contain a UUID eventId" in {
+    val payload       = MemberUpdatedEvent("M000355")
+    val eventId       = UUID.randomUUID()
+    val correlationId = UUID.randomUUID()
+    val ts            = Instant.now()
+    val envelope      = PipelineEvent("member.updated", payload, ts, eventId, correlationId, "member-pipeline")
+    envelope.eventId shouldBe eventId
+    envelope.eventId shouldBe a[UUID]
+  }
+
+  it should "contain an Instant timestamp" in {
+    val payload  = MemberUpdatedEvent("M000355")
+    val ts       = Instant.parse("2024-07-01T08:00:00Z")
+    val envelope = PipelineEvent("member.updated", payload, ts, UUID.randomUUID(), UUID.randomUUID(), "member-pipeline")
+    envelope.timestamp shouldBe ts
+    envelope.timestamp shouldBe a[Instant]
+  }
+
+  it should "contain a UUID correlationId" in {
+    val correlationId = UUID.randomUUID()
+    val payload       = MemberUpdatedEvent("M000355")
+    val envelope =
+      PipelineEvent("member.updated", payload, Instant.now(), UUID.randomUUID(), correlationId, "member-pipeline")
+    envelope.correlationId shouldBe correlationId
+    envelope.correlationId shouldBe a[UUID]
+  }
+
+  // ── Negative: missing required field ──
+
+  "Decoder" should "fail with field name when a required field is missing" in {
+    val json   = """{"congress":118,"textUrl":"http://x","textFormat":"xml","versionCode":"ih"}"""
+    val result = decode[BillTextAvailableEvent](json)
+    result.isLeft shouldBe true
+    result match {
+      case Left(err) => err.getMessage should include("billId")
+      case Right(_)  => fail("expected Left")
+    }
+  }
+
+  // ── Negative: missing correlationId on PipelineEvent envelope ──
+
+  "PipelineEvent decoder" should "fail when correlationId is missing" in {
+    val json =
+      """{"eventType":"member.updated","payload":{"memberId":"M000355"},"timestamp":"2024-06-01T12:00:00Z","eventId":"550e8400-e29b-41d4-a716-446655440000","source":"test"}"""
+    val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
+    result.isLeft shouldBe true
+    result match {
+      case Left(err) => err.getMessage should include("correlationId")
+      case Right(_)  => fail("expected Left")
+    }
+  }
+
+  it should "fail when timestamp is malformed" in {
+    val json =
+      """{"eventType":"member.updated","payload":{"memberId":"M000355"},"timestamp":"not-a-timestamp","eventId":"550e8400-e29b-41d4-a716-446655440000","correlationId":"550e8400-e29b-41d4-a716-446655440001","source":"test"}"""
+    val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
+    result.isLeft shouldBe true
+    result match {
+      case Left(err) => err.getMessage should include("Invalid timestamp")
+      case Right(_)  => fail("expected Left")
+    }
+  }
+
+  it should "fail when eventId is not a valid UUID" in {
+    val json =
+      """{"eventType":"member.updated","payload":{"memberId":"M000355"},"timestamp":"2024-06-01T12:00:00Z","eventId":"not-a-uuid","correlationId":"550e8400-e29b-41d4-a716-446655440001","source":"test"}"""
+    val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
+    result.isLeft shouldBe true
+    result match {
+      case Left(err) => err.getMessage should include("Invalid UUID")
+      case Right(_)  => fail("expected Left")
+    }
+  }
+
+  // ── EventType validation (criteria 10, 11, 16) ──
+
+  "PipelineEvent.validatedDecoder" should "decode a valid eventType successfully" in {
+    val payload       = MemberUpdatedEvent("M000355")
+    val eventId       = UUID.randomUUID()
+    val correlationId = UUID.randomUUID()
+    val ts            = Instant.parse("2024-06-01T12:00:00Z")
+    val envelope      = PipelineEvent("member.updated", payload, ts, eventId, correlationId, "test")
+    val json          = envelope.asJson.noSpaces
+    implicit val dec: io.circe.Decoder[PipelineEvent[MemberUpdatedEvent]] =
+      PipelineEvent.validatedDecoder[MemberUpdatedEvent]
+    val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
+    result shouldBe Right(envelope)
+  }
+
+  it should "reject an unknown eventType with a descriptive error listing valid types" in {
+    val json =
+      """{"eventType":"unknown.event","payload":{"memberId":"M000355"},"timestamp":"2024-06-01T12:00:00Z","eventId":"550e8400-e29b-41d4-a716-446655440000","correlationId":"550e8400-e29b-41d4-a716-446655440001","source":"test"}"""
+    implicit val dec: io.circe.Decoder[PipelineEvent[MemberUpdatedEvent]] =
+      PipelineEvent.validatedDecoder[MemberUpdatedEvent]
+    val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
+    result.isLeft shouldBe true
+    result match {
+      case Left(err) =>
+        err.getMessage should include("Unknown eventType")
+        err.getMessage should include("unknown.event")
+        err.getMessage should include("member.updated")
+        err.getMessage should include("vote.recorded")
+      case Right(_) => fail("expected Left")
+    }
+  }
+
+  "PipelineEvent decoder" should "annotate payload errors with the eventType" in {
+    val json =
+      """{"eventType":"member.updated","payload":{"wrongField":"bad"},"timestamp":"2024-06-01T12:00:00Z","eventId":"550e8400-e29b-41d4-a716-446655440000","correlationId":"550e8400-e29b-41d4-a716-446655440001","source":"test"}"""
+    val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
+    result.isLeft shouldBe true
+    result match {
+      case Left(err) =>
+        err.getMessage should include("member.updated")
+        err.getMessage should include("payload")
+      case Right(_) => fail("expected Left")
+    }
+  }
+
+  // ── EventTypes.allEventTypes ──
+
+  "EventTypes.allEventTypes" should "contain all 10 known event types" in {
+    EventTypes.allEventTypes.size shouldBe 10
+    EventTypes.allEventTypes should contain("bill.text.available")
+    EventTypes.allEventTypes should contain("vote.recorded")
+    EventTypes.allEventTypes should contain("scoring.user.completed")
+  }
+
+  // ── Effectful factory ──
+
+  "PipelineEvent.create" should "produce a PipelineEvent with unique eventId and recent timestamp via IO" in {
+    val correlationId = UUID.randomUUID()
+    val payload       = DailyIngestionStartEvent("2024-01-15", 118)
+    val before        = Instant.now()
+    val event = PipelineEvent
+      .create[IO, DailyIngestionStartEvent](
+        EventTypes.DailyIngestionStart,
+        payload,
+        correlationId,
+        "daily-ingestion",
+      )
+      .unsafeRunSync()
+    val after = Instant.now()
+
+    event.eventType shouldBe "daily.ingestion.start"
+    event.payload shouldBe payload
+    event.correlationId shouldBe correlationId
+    event.source shouldBe "daily-ingestion"
+    event.eventId shouldBe a[java.util.UUID]
+    (event.timestamp.equals(before) || event.timestamp.isAfter(before)) shouldBe true
+    (event.timestamp.equals(after) || event.timestamp.isBefore(after)) shouldBe true
+  }
+
+  it should "generate distinct eventIds on successive calls" in {
+    val correlationId = UUID.randomUUID()
+    val payload       = MemberUpdatedEvent("M000355")
+    val event1 = PipelineEvent
+      .create[IO, MemberUpdatedEvent](
+        EventTypes.MemberUpdated,
+        payload,
+        correlationId,
+        "test",
+      )
+      .unsafeRunSync()
+    val event2 = PipelineEvent
+      .create[IO, MemberUpdatedEvent](
+        EventTypes.MemberUpdated,
+        payload,
+        correlationId,
+        "test",
+      )
+      .unsafeRunSync()
+    event1.eventId should not be event2.eventId
+  }
+
+}
