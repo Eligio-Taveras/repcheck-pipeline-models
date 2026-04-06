@@ -2,7 +2,7 @@
 
 # 16. SBT Project Structure
 
-**Pattern**: Repos with publishable types + application code use `models/` + `app/` sub-project structure. Pure library repos are single-project.
+**Pattern**: Multi-project repos use `models/` + `app/` sub-projects (only models published); pure library repos are single-project.
 
 ## Multi-Project Repo (e.g., `repcheck-data-ingestion`)
 
@@ -108,9 +108,9 @@ object Dependencies {
 
   val alloydb = Seq(
     "org.tpolecat" %% "doobie-core"           % Versions.doobie,
-    "org.tpolecat" %% "doobie-hikari"         % Versions.doobie,
-    "org.tpolecat" %% "doobie-postgres"       % Versions.doobie,
-    "org.postgresql" % "postgresql"           % "42.7.3"
+    "org.tpolecat" %% "doobie-hikari"          % Versions.doobie,
+    "org.tpolecat" %% "doobie-postgres"        % Versions.doobie,
+    "org.postgresql" % "postgresql"            % "42.7.3"
   )
 
   val pureConfig = Seq(
@@ -146,9 +146,9 @@ credentials += Credentials(
 ```
 
 ## Rules
-- Multi-project: `models/` sub-project published; pipeline/app sub-projects not published
-- Single-project repos: root project published
-- Centralize all library versions in `project/Dependencies.scala`
-- Centralize repcheck artifact versions in `project/Versions.scala`
-- Organization: `com.repcheck` for all artifacts
-- Host on GitHub Packages
+- Multi-project: only `models/` sub-project published; pipelines/apps not published
+- Single-project (pure libraries): root project published
+- `project/Dependencies.scala` centralizes library versions
+- `project/Versions.scala` centralizes repcheck artifact versions
+- Organization: `com.repcheck`
+- Artifact host: GitHub Packages

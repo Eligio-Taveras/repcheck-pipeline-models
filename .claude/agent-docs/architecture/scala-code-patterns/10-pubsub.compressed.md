@@ -4,7 +4,7 @@
 
 **Pattern**: Case classes in `repcheck-pipeline-models` with Circe codecs. Generic publisher/subscriber helpers.
 
-### Event Definitions (in `repcheck-pipeline-models`)
+## Event Definitions (in `repcheck-pipeline-models`)
 
 ```scala
 import java.time.Instant
@@ -58,7 +58,7 @@ object UserProfileUpdatedEvent {
 }
 ```
 
-### Topic Constants (in `repcheck-pipeline-models`)
+## Topic Constants (in `repcheck-pipeline-models`)
 
 ```scala
 object Topics {
@@ -69,7 +69,7 @@ object Topics {
 }
 ```
 
-### Generic Publisher
+## Generic Publisher
 
 ```scala
 import com.google.cloud.pubsub.v1.Publisher
@@ -101,7 +101,7 @@ class PubSubEventPublisher[F[_]: Sync](projectId: String) extends EventPublisher
 }
 ```
 
-### Generic Subscriber
+## Generic Subscriber
 
 ```scala
 import com.google.cloud.pubsub.v1.{AckReplyConsumer, MessageReceiver, Subscriber}
@@ -118,7 +118,8 @@ trait EventSubscriber[F[_]] {
 }
 ```
 
-### Rules
+## Rules
+
 - All events have `timestamp: Instant` field
 - Events serialized to JSON via Circe, sent as Pub/Sub message data
 - Reference topic names via `Topics` constants

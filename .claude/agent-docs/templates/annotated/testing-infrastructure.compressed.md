@@ -3,15 +3,11 @@
 # Testing Infrastructure — Annotated Reference
 
 ## Pattern Summary
-RepCheck uses layered testing: unit tests with MockitoScala, HTTP simulation with WireMock, real infrastructure with AlloyDB Omni (Docker), and end-to-end tests against shared GCP dev environment. Test isolation via ephemeral namespaces — each test run generates unique prefix for cloud resources with automatic cleanup.
 
-## When to Use This Guide
-- Setting up tests for new repository/module
-- Adding integration tests needing AlloyDB, Pub/Sub, or PostgreSQL
-- Writing end-to-end tests verifying full pipeline flows
-- Preventing test resource collisions
+RepCheck uses layered testing: unit tests with MockitoScala, HTTP simulation with WireMock, real infrastructure with AlloyDB Omni (Docker), and E2E tests against shared GCP dev environment. Test isolation via ephemeral namespaces — each test run generates unique resource prefix and cleans up after itself.
 
 ## Source Files
+
 ```
 docs/templates/annotated/test-patterns.md           ← Test scaffolds and assertion patterns
 docs/templates/skeletons/test-templates.scala        ← Copy-and-fill test skeletons
@@ -45,11 +41,10 @@ import org.mockito.ArgumentMatchersSugar
 class BillPipelineSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
   val mockRepo = mock[AlloyDbRepository[IO]]
-  // Familiar API, good IDE support, works well with tagless final traits.
-  // Each mock scoped to test class.
+  // Familiar API, good IDE support, works with tagless final traits
 
   when(mockRepo.upsert(any[BillDO])).thenReturn(IO.unit)
-  // Stub behavior. MockitoScala integrates with Cats Effect IO.
+  // MockitoScala integrates with Cats Effect IO — return IO values directly
 
   "BillPipeline" should "persist fetched bills" in {
     // ... test body
@@ -71,22 +66,20 @@ import com.github.tomakehurst.wiremock.client.WireMock._
 
 class CongressApiSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
 
-  val wireMock = new WireMockServer(0)  // random port — avoids conflicts in parallel tests
+  val wireMock = new WireMockServer(0)  // random port — avoids conflicts in parallel runs
 
   override def beforeAll(): Unit = {
     wireMock.start()
-    // Stub Congress.gov bill list endpoint
     wireMock.stubFor(
       get(urlPathEqualTo("/v3/bill"))
         .willReturn(aResponse()
           .withStatus(200)
           .withBody(loadFixture("congress-bills-response.json")))
     )
-    // Stub timeout scenario for retry testing
     wireMock.stubFor(
       get(urlPathEqualTo("/v3/bill/timeout"))
         .willReturn(aResponse()
-          .withFixedDelay(30000))  // 30s delay triggers timeout
+          .withFixedDelay(30000))  // 30s delay for retry testing
     )
   }
 
@@ -96,14 +89,13 @@ class CongressApiSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
 
 ### AlloyDB Omni via DockerPostgresSpec
 
-Custom Docker CLI wrapper (testcontainers-scala incompatible with Docker 29+). `DockerPostgresSpec` manages full lifecycle: starts `google/alloydbomni:16.8.0` container (same engine as staging/prod with pgvector built-in), waits for readiness via JDBC retry, applies Liquibase migrations, tears down on suite completion.
+Custom Docker CLI wrapper (not testcontainers-scala — avoids docker-java incompatibility with Docker 29+). `DockerPostgresSpec` manages lifecycle: starts `google/alloydbomni:16.8.0` container with pgvector, waits for readiness (JDBC retry), applies Liquibase migrations, tears down on suite completion.
 
 ```scala
 // build.sbt — reuse trait from db-migrations test scope
 lazy val billIdentifier = (project in file("bill-identifier"))
   .dependsOn(govApis, dbMigrations % "test->test")
-  // "test->test" makes db-migrations test classes available; reuse
-  // DockerPostgresSpec without duplicating container logic.
+  // "test->test" makes db-migrations test classes available in bill-identifier's test classpath
 ```
 
 ```scala
@@ -113,11 +105,7 @@ import repcheck.db.migrations.DockerPostgresSpec
 class DoobieRepositorySpec extends AnyFlatSpec
     with Matchers
     with DockerPostgresSpec {
-  // DockerPostgresSpec handles beforeAll/afterAll:
-  // - Starts AlloyDB Omni container with random port
-  // - Applies all Liquibase migrations (full schema)
-  // - Exposes jdbcUrl, getConnection for test use
-  // - Removes container in afterAll
+  // DockerPostgresSpec handles beforeAll/afterAll: starts container, applies migrations, exposes jdbcUrl
 
   private lazy val xa: Transactor[IO] =
     Transactor.fromDriverManager[IO](
@@ -127,8 +115,7 @@ class DoobieRepositorySpec extends AnyFlatSpec
       password = "test",
       logHandler = None,
     )
-  // Use fromDriverManager (not fromConnection) — manages connection
-  // lifecycle per transaction, avoiding stale connection issues.
+  // Use fromDriverManager (not fromConnection) — manages connection lifecycle per transaction
 }
 ```
 
@@ -142,9 +129,7 @@ class DoobieRepositorySpec extends AnyFlatSpec
 docker-compose -f docker-compose-local-dev.yml up -d
 ```
 
-Starts:
-- **AlloyDB Omni** on `localhost:5432`
-- **Pub/Sub emulator** on `localhost:8085`
+Starts AlloyDB Omni on `localhost:5432` and Pub/Sub emulator on `localhost:8085`.
 
 ### Environment Variable Wiring
 
@@ -153,7 +138,7 @@ export DATABASE_URL=jdbc:postgresql://localhost:5432/repcheck
 export PUBSUB_EMULATOR_HOST=localhost:8085
 ```
 
-`PUBSUB_EMULATOR_HOST` auto-routes Pub/Sub client to emulator. AlloyDB uses standard JDBC/Doobie.
+When `PUBSUB_EMULATOR_HOST` is set, Pub/Sub client connects to emulator. AlloyDB uses standard JDBC/Doobie.
 
 ### Config-Driven Targeting
 
@@ -177,9 +162,9 @@ pubsub {
 }
 ```
 
-### Non-Emulatable Cloud Resources
+### Non-Emulatable Services
 
-GCP services without local emulator (Cloud Scheduler, Artifact Registry) use shared dev project `repcheck-dev`. Namespace resources per developer; config in `application-local.conf` points to dev project for these services.
+For GCP services without local emulator (Cloud Scheduler, Artifact Registry), use shared dev GCP project (`repcheck-dev`). Resources namespaced per developer. Config in `application-local.conf` points to dev for these services.
 
 ---
 
@@ -198,17 +183,12 @@ import java.util.UUID
 
 trait EphemeralNamespace {
 
-  // Generate unique prefix for this test run
   val testPrefix: String = s"test_${UUID.randomUUID().toString.take(8)}_"
-  // Example: "test_a1b2c3d4_" — short, readable, unique.
-  // Uses underscores (PostgreSQL table names can't contain hyphens).
+  // Example: "test_a1b2c3d4_" — short, readable, avoids hyphens for PostgreSQL
 
-  // Prefix a table or topic name
   def namespaced(name: String): String = s"$testPrefix$name"
-  // "bills" → "test_a1b2c3d4_bills"
-  // "bill-events" → "test_a1b2c3d4_bill-events"
+  // "bills" becomes "test_a1b2c3d4_bills"
 
-  // Override Tables object constants for tests
   def namespacedTables: Map[String, String] = Map(
     "bills"     -> namespaced("bills"),
     "votes"     -> namespaced("votes"),
@@ -218,7 +198,6 @@ trait EphemeralNamespace {
     "scores"    -> namespaced("scores"),
   )
 
-  // Cleanup: drop test tables and delete Pub/Sub resources with this prefix
   def cleanupNamespace(xa: Transactor[IO]): IO[Unit] = {
     for {
       _ <- sql"DROP SCHEMA IF EXISTS #${testPrefix} CASCADE".update.run.transact(xa).void
@@ -226,8 +205,7 @@ trait EphemeralNamespace {
       _ <- deletePubSubSubscriptions(testPrefix)
     } yield ()
   }
-  // Called in afterAll(). Drops ONLY schemas/tables with this run's prefix.
-  // Safe if cleanup fails — orphaned prefixed tables don't affect other runs.
+  // Called in afterAll(). Drops only schemas/tables with this run's prefix. Safe even if cleanup fails.
 }
 ```
 
@@ -248,22 +226,19 @@ class BillIngestionIntegrationSpec extends AnyFlatSpec
   }
 
   "BillIngestion" should "persist bills to namespaced table" in {
-    // Writes to "test_a1b2c3d4_bills", not "bills"
-    // No collision with other test runs or real data
+    // Test writes to "test_a1b2c3d4_bills", not "bills" — no collision
   }
 }
 ```
 
 ### CI Isolation
 
-CI runs use same `EphemeralNamespace` trait with:
+CI uses same `EphemeralNamespace` trait with:
 ```yaml
 env:
   GOOGLE_CLOUD_PROJECT: repcheck-dev
   TEST_NAMESPACE_PREFIX: ci-${{ github.run_id }}-
 ```
-
-Ensures CI runs isolated from each other and developer test runs.
 
 ---
 
@@ -271,7 +246,7 @@ Ensures CI runs isolated from each other and developer test runs.
 
 ### Structure
 
-E2E tests tagged separately; run in same SBT modules as unit tests.
+E2E tests tagged to run separately:
 
 ```scala
 import org.scalatest.Tag
@@ -304,14 +279,9 @@ Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-l", "com.repche
 ### Running Tests
 
 ```bash
-# Unit + integration tests only (E2E excluded)
-sbt test
-
-# E2E tests only
-sbt "testOnly -- -n com.repcheck.tags.E2ETest"
-
-# All tests including E2E
-sbt "testOnly -- --include-all"
+sbt test                                              # Unit + integration (E2E excluded)
+sbt "testOnly -- -n com.repcheck.tags.E2ETest"       # E2E only
+sbt "testOnly -- --include-all"                       # All including E2E
 ```
 
 ### E2E Config
@@ -338,17 +308,13 @@ congress-api {
 
 ## Auto-Bug Filing on CI Failure
 
-Failed CI tests automatically create GitHub Issues.
+GitHub Action automatically creates issue when CI tests fail.
 
-**Behavior:**
-1. Test job fails → bug-filing step runs
-2. Creates GitHub Issue with title `CI Failure: {test-suite-name} on {branch}`, body containing error log (last 50 lines), commit SHA, CI run link
-3. Labels: `bug/ci-failure`, `automated`
-4. On subsequent passing CI run → searches for open `bug/ci-failure` issues matching context → closes them automatically
+**Behavior:** Test job fails → bug-filing step runs → creates GitHub Issue with title `CI Failure: {test-suite-name} on {branch}`, body with error log (last 50 lines), commit SHA, CI run link. Labels: `bug/ci-failure`, `automated`. On subsequent passing CI run → searches for open `bug/ci-failure` issues → closes them.
 
-**Why:** Failed tests don't get lost in CI noise; issues create trackable backlog; auto-close prevents stale issues when fix lands.
+**Why:** Failed tests don't get lost in notification noise. Issues create trackable backlog. Auto-close prevents stale issues when fix lands.
 
-See `docs/templates/skeletons/github-actions-bug-on-failure.yml`.
+See `docs/templates/skeletons/github-actions-bug-on-failure.yml` for workflow template.
 
 ---
 
@@ -358,4 +324,4 @@ See `docs/templates/skeletons/github-actions-bug-on-failure.yml`.
 - **Test skeletons (copy-and-fill)**: `docs/templates/skeletons/test-templates.scala`
 - **Docker Compose stack**: `docs/templates/skeletons/docker-compose-local-dev.yml`
 - **Deployment architecture**: `docs/templates/annotated/deployment-architecture.md`
-- **Behavioral specs**: `docs/architecture/BEHAVIORAL_SPECS.md`
+- **Behavioral specs (what to test)**: `docs/architecture/BEHAVIORAL_SPECS.md`

@@ -48,10 +48,10 @@ sbt scalafixAll              # Auto-fix import ordering
 ### Required for doc compression
 - `ANTHROPIC_API_KEY` — Anthropic API key ([console.anthropic.com](https://console.anthropic.com/))
 
-**PowerShell** — add to your `\$PROFILE`:
+**PowerShell** — add to your `$PROFILE`:
 ```powershell
-\$env:ANTHROPIC_API_KEY = "sk-ant-..."
-\$env:CONGRESS_API_KEY = "your-congress-key"
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+$env:CONGRESS_API_KEY = "your-congress-key"
 ```
 
 **Bash/Zsh** — add to `~/.bashrc` or `~/.zshrc`:

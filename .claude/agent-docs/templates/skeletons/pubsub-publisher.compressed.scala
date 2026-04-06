@@ -2,13 +2,15 @@
 
 # RepCheck Skeleton: Pub/Sub Publisher
 
-**Purpose:** PipelineEvent[T] envelope for inter-service messages + tagless-final publisher wrapping Google Pub/Sub Java SDK.
+**Purpose:** PipelineEvent[T] envelope for all inter-service messages + tagless-final publisher wrapping Google Pub/Sub Java SDK.
 
-**Key Design:** ResourceRequirements travel with message for orchestrator capacity checks; payload T requires own Circe codecs; Google SDK wrapped in Sync[F].blocking; centralized retry wrapper.
+**Key Design:** EventId, eventType, timestamp, source, retryCount, maxRetries, ResourceRequirements, and payload travel together. ResourceRequirements enable orchestrator capacity checks without deserializing payload. Circe codecs auto-derived. Google Pub/Sub Java SDK wrapped in Sync[F].blocking with centralized retry wrapper.
 
 ---
 
 ## ResourceRequirements
+
+Capacity hints for orchestrator scheduling.
 
 ```scala
 final case class ResourceRequirements(
@@ -26,9 +28,18 @@ object ResourceRequirements {
 
 ## PipelineEvent[T] Envelope
 
-**Structure:** eventId (UUID), eventType (discriminator), timestamp, source (originating service), retryCount, maxRetries (dead-letter ceiling), resources (Cloud Run capacity hints), payload (business data T).
+Typed event envelope for all pipeline messages.
 
-**Codecs:** Auto-derived via Circe; payload T must have Encoder/Decoder.
+| Field | Purpose |
+|-------|---------|
+| eventId | Unique ID for idempotency and tracing (UUID) |
+| eventType | Discriminator, e.g., "bill.text.available" |
+| timestamp | When event was created (Instant) |
+| source | Originating service, e.g., "bill-ingestion" |
+| retryCount | Times orchestrator has re-enqueued (default: 0) |
+| maxRetries | Ceiling; retryCount >= maxRetries → dead-letter (default: 5) |
+| resources | Capacity hints for Cloud Run scheduling |
+| payload | Business data of type T (requires Encoder/Decoder) |
 
 ```scala
 final case class PipelineEvent[T](
@@ -70,7 +81,7 @@ object PipelineEvent {
 
 ## PubSubPublisher Trait
 
-Tagless-final. One instance per topic.
+Tagless-final publisher interface (one instance per topic).
 
 ```scala
 trait PubSubPublisher[F[_]] {
@@ -78,15 +89,13 @@ trait PubSubPublisher[F[_]] {
 }
 ```
 
+**publish** — Returns Pub/Sub message ID on success.
+
 ---
 
 ## Google Pub/Sub SDK Implementation
 
-**Config:** projectId, topicId, optional RetryConfig.
-
-**Lifecycle:** Resource manages SDK Publisher acquire/release.
-
-**publish:** Serializes event to JSON, wraps in PubsubMessage with attributes (eventType, source, retryCount), publishes via SDK, applies centralized retry wrapper.
+Config + lifecycle-managed Resource.
 
 ```scala
 object PubSubPublisher {
@@ -104,7 +113,8 @@ object PubSubPublisher {
     Resource
       .make(
         Sync[F].blocking {
-          // TODO: Replace with real Publisher.newBuilder(...).build()
+          // TODO: val topicName = TopicName.of(config.projectId, config.topicId)
+          // TODO: Publisher.newBuilder(topicName).build()
           ???: com.google.cloud.pubsub.v1.Publisher
         }
       )(publisher =>
@@ -129,7 +139,6 @@ object PubSubPublisher {
                 .build()
 
               // TODO: sdkPublisher.publish(message).get()
-              // Returns the message ID string
               ???
             }
 
@@ -144,9 +153,4 @@ object PubSubPublisher {
 }
 ```
 
-**Usage:**
-```scala
-PubSubPublisher.make[IO](config, PubSubErrorClassifier).use { publisher =>
-  publisher.publish(event)
-}
-```
+**How to Create:** Wrap with Resource.use { publisher => publisher.publish(event) }. Blocks on Sync[F]. Serializes event to JSON, wraps with eventType/source/retryCount attributes. Retries via centralized RetryWrapper.

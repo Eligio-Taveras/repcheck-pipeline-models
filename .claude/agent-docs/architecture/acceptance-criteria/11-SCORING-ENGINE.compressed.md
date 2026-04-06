@@ -4,60 +4,52 @@
 
 ## System Context
 
-**Alignment scoring engine** — computes legislator-user fit scoped to representative relationships (user scored only against their own representatives). Six coordinating processes:
+Component 11 computes how well each legislator's voting record aligns with each user's political preferences. **Scoring is scoped to representative relationship: users are only scored against their own representatives (house member + state senators).**
 
-```
-Process A: Pairing Validator (§11.6) — scheduled + user location change + member.updated
-    ↓ persists user_legislator_pairings
+Six processes coordinate the scoring lifecycle:
+- **Process A**: Pairing Validator (§11.6) — persists `user_legislator_pairings`
+- **Process B**: Ingestion Pipelines (Components 4/6/7/10) — updates `stance_materialization_status`
+- **Process C**: Stance Materializer (§11.9) — materializes `member_bill_stances` + `member_bill_stance_topics`
+- **Process D**: User-Bill Alignment (§11.10) — writes `user_bill_alignments`, `user_amendment_alignments`
+- **Process E**: User-Member Scoring (§11.7, §11.8) — Phase 1: numeric scores (parallel), Phase 2: LLM explanations (parallel)
+- **Process F**: Score Refresh Notifier (§11.11) — publishes `scoring.user.completed`
 
-Process B: Ingestion Pipelines (Components 4/6/7/10)
-    ↓ writes bills, votes, amendments, findings
-    ↓ updates stance_materialization_status (has_votes / has_analysis)
+### Three SBT Projects
 
-Process C: Stance Materializer (§11.9) — scheduled DB scanner
-    ↓ polls stance_materialization_status for bills with both votes + analysis
-    ↓ writes member_bill_stances + member_bill_stance_topics (per-topic with reasoning/embedding)
-
-Process D: User-Bill Alignment (§11.10) — scheduled
-    ↓ processes changed bills + changed users
-    ↓ writes user_bill_alignments, user_amendment_alignments
-
-Process E: User-Member Scoring (§11.7, §11.8) — scheduled + ad-hoc
-    ↓ Phase 1: numeric scores (parallel) → persisted immediately
-    ↓ Phase 2: LLM explanations (parallel) → persisted after scores
-
-Process F: Score Refresh Notifier (§11.11)
-    ↓ publishes scoring.user.completed for ad-hoc requests
-```
-
-**Three SBT projects**: `score-cache` (publishable library for score reads/writes), `scoring-pipeline` (Cloud Run Job for user-member alignment scoring), `stance-materializer` (Cloud Run Job for bill stance materialization and user-bill alignment).
-
-**Dependencies**: Component 1 (shared-models), Component 2 (pipeline-models), Component 9 (prompt-engine-users), Component 10 (llm-adapter, SemanticEmbeddingService).
+| Project | Type | Purpose |
+|---------|------|---------|
+| `score-cache` | Library | Repository for score reads/writes. Wraps AlloyDB score tables. No pipeline/Pub/Sub. |
+| `scoring-pipeline` | Cloud Run Job | Orchestrates per-user scoring: reads pairings, aggregates stances, calculates alignment, generates LLM explanations. Scheduled + ad-hoc. |
+| `stance-materializer` | Cloud Run Job | Materializes member bill stances. Polls DB for readiness. Pre-computes user-bill alignment. |
 
 ### Scoring Flow
 
 **Step 1 — User stance aggregation (§11.1)**
 
-User stances from Q&A responses using pre-tagged question bank:
-- **Multiple-choice** → algorithmic (deterministic): Per-topic `stanceScore = Σ(agreeDir × multiplier × weight) / Σ(weight)`, bounded [-1.0, +1.0]. `agreeStance_direction = +1.0` if "Progressive", `-1.0` if "Conservative".
-- **Custom fill-in** → LLM batch call via Component 9 `preference-interpretation` profile (stance adjustments only, no importance signal).
-- **No LLM for pure multiple-choice flows** — common case requires zero LLM calls.
-- **Topic importance** — explicit user weights from "Prioritize your topics" screen (stored `user_topic_priorities`), NOT derived from answer frequency.
+Multiple-choice answers → algorithmic extraction (deterministic):
+- Per-topic `stanceScore` = weighted average: `Σ(agreeDir × multiplier × weight) / Σ(weight)`
+- `agreeStance_direction = +1.0` if "Progressive", `-1.0` if "Conservative"`
+- Bounded to [-1.0, +1.0]
 
-Output: `UserTopicProfile` — list of `(topic, stanceScore[-1.0 to +1.0], importance[0.0-1.0])`.
+Custom fill-in answers → LLM batch call via Component 9 `preference-interpretation` profile (stance adjustments only).
+
+Topic importance from explicit user prioritization (`user_topic_priorities`), not answer frequency.
+
+Output: `UserTopicProfile` — `(topic, stanceScore, importance)` where `stanceScore ∈ [-1.0, +1.0]`, `importance ∈ [0.0, 1.0]`.
 
 **Step 2 — Legislator profile construction (§11.2)**
 
-Query pre-materialized `member_bill_stance_topics` (no LLM, no finding lookups):
-1. Per user-cared topic: fetch `member_bill_stance_topics` rows
+Query over pre-materialized `member_bill_stance_topics`:
+1. Fetch rows where topic matches
 2. Each row: `stanceDirection`, `reasoning`, `reasoningEmbedding`, `findingId`
 3. Contribution = `stanceDirection × voteWeight` (per BEHAVIORAL_SPECS.md §2)
-4. Average across topic votes → `stanceScore` per topic
+4. Average across all votes → `stanceScore` per topic
 
 **Step 3 — Alignment score calculation + LLM explanation (§11.3, §11.4)**
 
-- **Algorithmic**: Per-topic alignment = `1.0 - abs(userStance - legislatorStance) / 2.0`. Weighted average by user importance → **authoritative score** in `scores.aggregate_score`.
-- **LLM explanation**: Sonnet/Haiku call via Component 9 → `AlignmentScoreOutput`. LLM's `overallScore` for context only, NOT stored. Reasoning in both `scores.reasoning` and `score_history.reasoning`. Evidence from pre-materialized `member_bill_stance_topics` and `user_bill_alignments`.
+Algorithmic base: Per-topic alignment = `1.0 - abs(userStance - legislatorStance) / 2.0`. Weighted average using user importance. **This is the authoritative score** (stored in `scores.aggregate_score`).
+
+LLM explanation: Sonnet/Haiku via Component 9 → `AlignmentScoreOutput`. LLM's `overallScore` is for context only, not stored. Evidence from pre-materialized `member_bill_stance_topics` and `user_bill_alignments`.
 
 ### Score Storage (Two Tiers)
 
@@ -67,14 +59,14 @@ Query pre-materialized `member_bill_stance_topics` (no LLM, no finding lookups):
 |-------|-----|---------|
 | `scores` | (user_id, member_id) | `aggregate_score`, `status`, `last_updated`, `llm_model`, `total_bills`, `total_votes`, `non_overlapping_topics`, `reasoning`, `reasoning_embedding` |
 | `score_topics` | (user_id, member_id, topic) | `score` per topic |
-| `score_congress` | (user_id, member_id, congress) | `overall_score`, `bills_considered`, `votes_analyzed` per congress |
+| `score_congress` | (user_id, member_id, congress) | `overall_score`, `bills_considered`, `votes_analyzed` |
 | `score_congress_topics` | (user_id, member_id, congress, topic) | `score` per congress per topic |
 
 **Score history** (append-only):
 
 | Table | Key | Content |
 |-------|-----|---------|
-| `score_history` | score_id (UUID) | `aggregate_score`, `status`, `trigger_event` ("scheduled" / "ad-hoc"), `reasoning`, `reasoning_embedding` |
+| `score_history` | score_id (UUID) | `aggregate_score`, `status`, `trigger_event` ("scheduled"/"ad-hoc"), `reasoning`, `reasoning_embedding` |
 | `score_history_congress` | (score_id, congress) | `overall_score`, `bills_considered`, `votes_analyzed` |
 | `score_history_congress_topics` | (score_id, congress, topic) | `score` |
 | `score_history_highlights` | (score_id, bill_id, topic) | `stance`, `vote`, `alignment` |
@@ -83,12 +75,12 @@ Query pre-materialized `member_bill_stance_topics` (no LLM, no finding lookups):
 
 | Table | Written By | When |
 |-------|-----------|------|
-| `user_legislator_pairings` | `PairingValidator` | At signup, scheduled validation, user location change |
-| `stance_materialization_status` | Votes pipeline, Analysis pipeline | On vote position change, analysis completion |
-| `member_bill_stances` + `member_bill_stance_topics` | `StanceMaterializer` | Scheduled scanner finds bills with both votes + analysis |
-| `user_bill_alignments` + `user_amendment_alignments` | `UserBillAligner` | Scheduled, changed bills and users |
-| `scores` + `score_topics` + `score_congress` + `score_congress_topics` | `ScorePersister.upsertScore` | After each scoring run |
-| `score_history` + sub-tables | `ScorePersister.appendHistory` | After each scoring run (append) |
+| `user_legislator_pairings` | PairingValidator (§11.6) | At signup, scheduled validation, user location change |
+| `stance_materialization_status` | Votes/Analysis pipelines | On vote position change, analysis completion |
+| `member_bill_stances` + `member_bill_stance_topics` | StanceMaterializer (§11.9) | Scheduled scanner finds bills with both votes + analysis |
+| `user_bill_alignments` + `user_amendment_alignments` | UserBillAligner (§11.10) | Scheduled, for changed bills and changed users |
+| `scores` + `score_topics` + `score_congress` + `score_congress_topics` | ScorePersister.upsertScore (§11.5) | After each scoring run |
+| `score_history` + sub-tables | ScorePersister.appendHistory (§11.5) | After each scoring run (append) |
 
 ### Event Contracts
 
@@ -99,7 +91,7 @@ Query pre-materialized `member_bill_stance_topics` (no LLM, no finding lookups):
 | `scoring.user.requested` | **Consumes** (Scoring Pipeline) | `{ userId, requestId, source }` |
 | `scoring.user.completed` | **Emits** (Score Refresh Notifier) | `{ userId, requestId, memberScoreCount, status }` |
 
-> Scoring engine does NOT consume `analysis.completed` or `vote.recorded`. Those pipelines update `stance_materialization_status` in DB. Stance materializer polls DB for readiness.
+> Scoring engine does NOT consume `analysis.completed` or `vote.recorded` events. Those pipelines update `stance_materialization_status` in DB. Stance materializer polls DB for readiness.
 
 ---
 
@@ -107,17 +99,17 @@ Query pre-materialized `member_bill_stance_topics` (no LLM, no finding lookups):
 
 | Area | Project | Description |
 |------|---------|-------------|
-| 11.1 User Stance Aggregation | `scoring-pipeline` | Extracts per-topic stance and importance from Q&A responses. Algorithmic for multiple-choice. LLM batch call for custom fill-in via Component 9. |
-| 11.2 Legislator Profile Construction | `scoring-pipeline` | Queries pre-materialized `member_bill_stance_topics` → per-topic stance profile per legislator. |
-| 11.3 Alignment Score Calculator | `scoring-pipeline` | Pure algorithmic per-topic alignment: linear distance on [-1.0, +1.0] stance scale, weighted by user importance. |
-| 11.4 Score Explainer | `scoring-pipeline` | LLM explanation layer via Component 9 + Component 10 llm-adapter. Evidence from pre-materialized tables. Returns `AlignmentScoreOutput`. Non-fatal on failure. |
+| 11.1 User Stance Aggregation | `scoring-pipeline` | Extracts per-topic stance and importance from Q&A. Algorithmic for MC. LLM batch for custom via Component 9. |
+| 11.2 Legislator Profile Construction | `scoring-pipeline` | Queries pre-materialized `member_bill_stance_topics` → per-topic stance per legislator. |
+| 11.3 Alignment Score Calculator | `scoring-pipeline` | Linear distance on [-1.0, +1.0] stance scale, weighted by user importance. |
+| 11.4 Score Explainer | `scoring-pipeline` | LLM explanation via Component 9 + Component 10 llm-adapter. Non-fatal on failure. |
 | 11.5 Score Persistence | `score-cache` | AlloyDB score repository. Upserts current scores, appends history. |
-| 11.6 Pairing Validator | `scoring-pipeline` | Persists `user_legislator_pairings` at signup. Scheduled validation. Handles user location change and `member.updated` events. |
-| 11.7 Scoring Orchestrator | `scoring-pipeline` | Per-user orchestration: reads pairings → aggregates stances → scores all legislators (Phase 1: numeric, Phase 2: LLM explanation). |
-| 11.8 Scoring Pipeline Entry Point | `scoring-pipeline` | Cloud Run Job entry point. Scheduled + ad-hoc modes. Subscribes to `scoring.user.requested`. |
-| 11.9 Stance Materializer | `stance-materializer` | Scheduled DB scanner. Polls `stance_materialization_status` for ready bills. Materializes per-topic stances with reasoning/embedding. |
-| 11.10 User-Bill Alignment | `stance-materializer` | Scheduled job. Pre-computes per-bill, per-topic alignment between users and bills. Writes `user_bill_alignments`. |
-| 11.11 Score Refresh Notifier | `scoring-pipeline` | Publishes `scoring.user.completed` event on ad-hoc completion. |
+| 11.6 Pairing Validator | `scoring-pipeline` | Persists `user_legislator_pairings`. Scheduled + location change + `member.updated`. |
+| 11.7 Scoring Orchestrator | `scoring-pipeline` | Per-user: reads pairings → aggregates stances → scores all legislators (Phase 1 numeric, Phase 2 LLM). |
+| 11.8 Scoring Pipeline Entry Point | `scoring-pipeline` | Cloud Run Job. Scheduled + ad-hoc. Subscribes to `scoring.user.requested`. |
+| 11.9 Stance Materializer | `stance-materializer` | Scheduled DB scanner. Polls for ready bills. Materializes per-topic stances with reasoning/embedding. |
+| 11.10 User-Bill Alignment | `stance-materializer` | Scheduled. Pre-computes per-bill, per-topic alignment. |
+| 11.11 Score Refresh Notifier | `scoring-pipeline` | Publishes `scoring.user.completed` on ad-hoc completion. |
 
 ---
 
@@ -128,63 +120,63 @@ repcheck-scoring-engine/
 ├── score-cache/
 │   └── repcheck.scoring.cache
 │       ├── repository
-│       │   ├── ScorePersister
-│       │   └── ScoreReader
+│       │   ├── ScorePersister             (11.5)
+│       │   └── ScoreReader                (11.5)
 │       ├── config
-│       │   └── ScoreCacheConfig
+│       │   └── ScoreCacheConfig           (11.5)
 │       └── errors
-│           └── ScorePersistenceFailed
+│           └── ScorePersistenceFailed     (11.5)
 │
 ├── scoring-pipeline/
 │   └── repcheck.scoring.pipeline
 │       ├── aggregation
-│       │   ├── UserStanceAggregator
-│       │   ├── UserTopicProfile
-│       │   └── TopicStanceEntry
+│       │   ├── UserStanceAggregator       (11.1)
+│       │   ├── UserTopicProfile           (11.1)
+│       │   └── TopicStanceEntry           (11.1)
 │       ├── profile
-│       │   ├── LegislatorProfileBuilder
-│       │   ├── LegislatorTopicProfile
-│       │   ├── LegislatorTopicEntry
-│       │   └── VoteWeightConfig
+│       │   ├── LegislatorProfileBuilder   (11.2)
+│       │   ├── LegislatorTopicProfile     (11.2)
+│       │   ├── LegislatorTopicEntry       (11.2)
+│       │   └── VoteWeightConfig           (11.2)
 │       ├── scoring
-│       │   ├── AlignmentScoreCalculator
-│       │   ├── PerTopicAlignment
-│       │   ├── AlignmentCalculationResult
-│       │   ├── ScoreExplainer
-│       │   ├── AlignmentEvidenceFetcher
-│       │   └── ScoringContext
+│       │   ├── AlignmentScoreCalculator   (11.3)
+│       │   ├── PerTopicAlignment          (11.3)
+│       │   ├── AlignmentCalculationResult (11.3)
+│       │   ├── ScoreExplainer             (11.4)
+│       │   ├── AlignmentEvidenceFetcher   (11.4)
+│       │   └── ScoringContext             (11.4)
 │       ├── pairing
-│       │   └── PairingValidator
+│       │   └── PairingValidator           (11.6)
 │       ├── orchestration
-│       │   ├── ScoringOrchestrator
-│       │   └── ScoringResult
+│       │   ├── ScoringOrchestrator        (11.7)
+│       │   └── ScoringResult              (11.7)
 │       ├── notification
-│       │   └── ScoreRefreshNotifier
+│       │   └── ScoreRefreshNotifier       (11.11)
 │       ├── config
-│       │   └── ScoringPipelineConfig
+│       │   └── ScoringPipelineConfig      (11.8)
 │       ├── app
-│       │   └── ScoringPipelineApp
+│       │   └── ScoringPipelineApp         (11.8)
 │       └── errors
-│           ├── ScoringFailed
-│           ├── StanceExtractionFailed
-│           ├── ProfileBuildFailed
-│           └── ExplanationFailed
+│           ├── ScoringFailed              (11.7)
+│           ├── StanceExtractionFailed     (11.1)
+│           ├── ProfileBuildFailed         (11.2)
+│           └── ExplanationFailed          (11.4)
 │
 └── stance-materializer/
     └── repcheck.scoring.materializer
         ├── scanner
-        │   └── StanceMaterializationScanner
+        │   └── StanceMaterializationScanner (11.9)
         ├── materializer
-        │   └── StanceMaterializer
+        │   └── StanceMaterializer         (11.9)
         ├── alignment
-        │   └── UserBillAligner
+        │   └── UserBillAligner            (11.10)
         ├── config
-        │   └── StanceMaterializerConfig
+        │   └── StanceMaterializerConfig   (11.9)
         ├── app
-        │   └── StanceMaterializerApp
+        │   └── StanceMaterializerApp      (11.9)
         └── errors
-            ├── MaterializationFailed
-            └── AlignmentFailed
+            ├── MaterializationFailed      (11.9)
+            └── AlignmentFailed            (11.10)
 ```
 
 ---
@@ -192,30 +184,31 @@ repcheck-scoring-engine/
 ## Dependencies
 
 ```
-score-cache (publishable library)
-├── repcheck-shared-models (Component 1 — score DOs §1.5)
-├── repcheck-pipeline-models (Component 2 — Tables constants §2.10)
-└── Doobie
-
-scoring-pipeline (Cloud Run Job)
-├── score-cache
-├── repcheck-shared-models (Component 1 — DOs §1.5, output schemas §1.6)
-├── repcheck-pipeline-models (Component 2 — events §2.1, pipeline tracking)
-├── repcheck-prompt-engine-users (Component 9 — UserPromptAssembler, scoring profiles)
-├── repcheck-llm-analysis (llm-adapter) (Component 10 — LlmProvider[F], LlmRetryWrapper)
-├── repcheck-llm-analysis (in-process-ml) (Component 10 — SemanticEmbeddingService)
-├── Doobie
-├── Google Cloud Pub/Sub SDK
-└── http4s Ember
-
-stance-materializer (Cloud Run Job)
-├── repcheck-shared-models (Component 1 — DOs §1.5, §1.9)
-├── repcheck-pipeline-models (Component 2 — Tables constants)
-├── repcheck-llm-analysis (llm-adapter) (Component 10)
-├── repcheck-llm-analysis (in-process-ml) (Component 10)
-├── repcheck-prompt-engine-users (Component 9)
-├── Doobie
-└── http4s Ember
+repcheck-scoring-engine/
+├── score-cache (publishable library)
+│   ├── repcheck-shared-models            (Component 1 § 1.5 — score DOs)
+│   ├── repcheck-pipeline-models          (Component 2 § 2.10 — Tables constants)
+│   └── Doobie                            (AlloyDB)
+│
+├── scoring-pipeline (Cloud Run Job)
+│   ├── score-cache                       (internal SBT)
+│   ├── repcheck-shared-models            (Component 1)
+│   ├── repcheck-pipeline-models          (Component 2 — events, tracking)
+│   ├── repcheck-prompt-engine-users      (Component 9 — UserPromptAssembler)
+│   ├── repcheck-llm-analysis (llm-adapter) (Component 10 — LlmProvider, LlmRetryWrapper)
+│   ├── repcheck-llm-analysis (in-process-ml) (Component 10 § 10.5/10.8 — SemanticEmbeddingService)
+│   ├── Doobie                            (AlloyDB)
+│   ├── Google Cloud Pub/Sub               (scoring.user.requested subscription)
+│   └── http4s Ember                      (LLM API calls)
+│
+└── stance-materializer (Cloud Run Job)
+    ├── repcheck-shared-models            (Component 1)
+    ├── repcheck-pipeline-models          (Component 2)
+    ├── repcheck-llm-analysis (llm-adapter) (Component 10)
+    ├── repcheck-llm-analysis (in-process-ml) (Component 10 § 10.5/10.8)
+    ├── repcheck-prompt-engine-users      (Component 9)
+    ├── Doobie                            (AlloyDB)
+    └── http4s Ember                      (LLM API calls)
 ```
 
 ---
@@ -224,14 +217,14 @@ stance-materializer (Cloud Run Job)
 
 | Component | Update | Reason |
 |-----------|--------|--------|
-| **Component 1 §1.5** | Add DOs: `UserLegislatorPairingDO`, `MemberBillStanceTopicDO`, `UserBillAlignmentDO`, `UserAmendmentAlignmentDO`, `StanceMaterializationStatusDO` | New tables for batch scoring |
-| **Component 1 §1.5** | Update `ScoreDO` with `status`, `nonOverlappingTopics`, `reasoning`, `reasoningEmbedding` | Score status and explanation |
-| **Component 1 §1.5** | Update `ScoreHistoryDO` with `status`, `reasoningEmbedding` | History audit trail |
-| **Component 2 §2.1** | Add `ScoringUserRequestedEvent`, `ScoringUserCompletedEvent`; update consumers for `VoteRecordedEvent`, `AnalysisCompletedEvent`, `UserProfileUpdatedEvent`, `MemberUpdatedEvent` | Batch scoring replaces event-driven |
-| **Component 2 §2.10** | Add `Tables` constants for `user_legislator_pairings`, `member_bill_stance_topics`, `user_bill_alignments`, `user_amendment_alignments`, `stance_materialization_status` | New tables |
-| **BEHAVIORAL_SPECS.md §3** | Rewrite "Incremental Scoring" → "Batch Scoring Architecture" | Architecture change |
-| **Votes pipeline §6.5** | Add `stance_materialization_status` upsert after vote position persistence | Votes pipeline updates status |
-| **Analysis pipeline §10.10** | Add `stance_materialization_status` upsert after analysis completion | Analysis pipeline updates status |
+| **Component 1 § 1.5** | Add DOs: `UserLegislatorPairingDO`, `MemberBillStanceTopicDO`, `UserBillAlignmentDO`, `UserAmendmentAlignmentDO`, `StanceMaterializationStatusDO` | New tables for batch scoring |
+| **Component 1 § 1.5** | Update `ScoreDO`: add `status`, `nonOverlappingTopics`, `reasoning`, `reasoningEmbedding` | Score status + explanation |
+| **Component 1 § 1.5** | Update `ScoreHistoryDO`: add `status`, `reasoningEmbedding` | History enhancements |
+| **Component 2 § 2.1** | Add `ScoringUserRequestedEvent`, `ScoringUserCompletedEvent`; update consumers for `VoteRecordedEvent`, `AnalysisCompletedEvent`, `UserProfileUpdatedEvent`, `MemberUpdatedEvent` | Batch scoring replaces event-driven |
+| **Component 2 § 2.10** | Add `Tables` constants: `user_legislator_pairings`, `member_bill_stance_topics`, `user_bill_alignments`, `user_amendment_alignments`, `stance_materialization_status` | New table constants |
+| **BEHAVIORAL_SPECS.md § 3** | Rewrite "Incremental Scoring" → "Batch Scoring Architecture" | Fundamental architecture change |
+| **Votes pipeline § 6.5** | Add `stance_materialization_status` upsert after vote position persistence | Update status flags |
+| **Analysis pipeline § 10.10** | Add `stance_materialization_status` upsert after analysis completion | Update status flags |
 
 ---
 
@@ -239,20 +232,19 @@ stance-materializer (Cloud Run Job)
 
 | Test Type | Scope | Infrastructure |
 |-----------|-------|---------------|
-| Unit | `UserStanceAggregator` MC extraction formula, importance normalization | MockitoScala |
+| Unit | `UserStanceAggregator` MC extraction, importance normalization | MockitoScala |
 | Unit | `AlignmentScoreCalculator` formula, edge cases | No infrastructure |
 | Unit | `LegislatorProfileBuilder` stance profile from pre-materialized data | MockitoScala |
-| Unit | `PairingValidator` creation and validation logic | MockitoScala |
-| Unit | `ScoringOrchestrator` step coordination, phased scoring | MockitoScala |
+| Unit | `PairingValidator` logic | MockitoScala |
+| Unit | `ScoringOrchestrator` coordination, phasing | MockitoScala |
 | Unit | `StanceMaterializationScanner` query logic | MockitoScala |
-| WireMock | LLM API calls from `ScoreExplainer` (request structure, profile selection) | WireMock |
-| WireMock | LLM API calls from `StanceMaterializer` (stance reasoning generation) | WireMock |
-| Integration | `ScorePersister` upsert + history append round-trip | AlloyDB Omni (Docker) |
-| Integration | `LegislatorProfileBuilder` query against seeded `member_bill_stance_topics` | AlloyDB Omni |
+| WireMock | LLM calls from `ScoreExplainer`, `StanceMaterializer` | WireMock |
+| Integration | `ScorePersister` upsert + history round-trip | AlloyDB Omni (Docker) |
+| Integration | `LegislatorProfileBuilder` against seeded `member_bill_stance_topics` | AlloyDB Omni |
 | Integration | `UserStanceAggregator` with Q&A data | AlloyDB Omni |
-| Integration | `StanceMaterializer` full materialization for seeded bill | AlloyDB Omni |
+| Integration | `StanceMaterializer` full materialization | AlloyDB Omni |
 | Integration | `UserBillAligner` alignment computation | AlloyDB Omni |
-| Integration | `PairingValidator` creation against seeded terms | AlloyDB Omni |
-| E2E | Full scoring run from `scoring.user.requested` to scores written | AlloyDB Omni + WireMock |
-| E2E | Stance materialization scanner → materialize → scoring | AlloyDB Omni + WireMock |
-| E2E | Ad-hoc scoring request → completion event published | AlloyDB Omni + WireMock + mock Pub/Sub |
+| Integration | `PairingValidator` pairing creation | AlloyDB Omni |
+| E2E | Full scoring from `scoring.user.requested` to scores written | AlloyDB Omni + WireMock |
+| E2E | Stance materialization → scoring | AlloyDB Omni + WireMock |
+| E2E | Ad-hoc scoring → completion event published | AlloyDB Omni + WireMock + mock Pub/Sub |

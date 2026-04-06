@@ -1,35 +1,35 @@
 <!-- GENERATED FILE — DO NOT EDIT. Source: docs/templates/skeletons/orchestrator.scala -->
 
-```markdown
 # RepCheck Skeleton: Pipeline Orchestrator
 
-**Repo:** repcheck-orchestrator (dedicated app)  
-**Purpose:** Cloud Scheduler-triggered Cloud Run Job that reads Pub/Sub queue, checks Cloud Run capacity against PipelineEvent ResourceRequirements, launches jobs when available, re-enqueues on no capacity, dead-letters after max retries with GCP Monitoring alert.
+**Purpose:** Cloud Scheduler-triggered Cloud Run Job. Reads Pub/Sub queue, checks Cloud Run capacity against message ResourceRequirements, launches Cloud Run Jobs when capacity available, re-enqueues when not, dead-letters after max retries with GCP Monitoring alert.
 
-## Key Architecture
-- Orchestrator = Cloud Run Job triggered by Cloud Scheduler
+**Key Decisions:**
+- Orchestrator is Cloud Run Job triggered by Cloud Scheduler
 - Each PipelineEvent carries ResourceRequirements (maxCpu, maxMemory)
-- Queries Cloud Run API for available capacity
-- Available → launch Cloud Run Job execution
+- Checks Cloud Run API for available capacity
+- Capacity available → launch Cloud Run Job execution
 - No capacity → re-enqueue with retryCount + 1
-- retryCount >= maxRetries → dead-letter queue + GCP Monitoring alert
+- retryCount >= maxRetries → move to dead-letter queue with GCP Monitoring alert
 
 ---
 
-## Cloud Run Capacity Checker
-
 ```scala
+package repcheck.orchestrator
+
+import cats.effect.{Async, IOApp, ExitCode, IO}
+import cats.syntax.all.*
+import java.util.UUID
+import repcheck.pipeline.models.pubsub.*
+import repcheck.pipeline.models.retry.*
+
+// Cloud Run Capacity Checker
+
 trait CapacityChecker[F[_]] {
-  /** Check if Cloud Run has enough resources for the given requirements.
-    *
-    * @param requirements CPU and memory requirements from the PipelineEvent
-    * @return true if capacity is available to launch a new job
-    */
   def hasCapacity(requirements: ResourceRequirements): F[Boolean]
 }
 
 object CapacityChecker {
-
   def make[F[_]: Async](
       projectId: String,
       region: String
@@ -38,59 +38,31 @@ object CapacityChecker {
       def hasCapacity(requirements: ResourceRequirements): F[Boolean] =
         Async[F].blocking {
           // TODO: Query Cloud Run Admin API for current resource utilization
-          //
-          // 1. List running job executions:
-          //    GET https://run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/{job}/executions
-          //
+          // 1. List running job executions: GET https://run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/{job}/executions
           // 2. Sum current CPU/memory usage across running executions
-          //
-          // 3. Compare against Cloud Run service limits and the requested
-          //    ResourceRequirements (maxCpu, maxMemory)
-          //
+          // 3. Compare against Cloud Run service limits and ResourceRequirements (maxCpu, maxMemory)
           // 4. Return true if adding this job would stay within limits
-          //
           // Use com.google.cloud.run.v2.JobsClient or HTTP API via http4s
           ???
         }
     }
 }
-```
 
----
+// Cloud Run Job Launcher
 
-## Cloud Run Job Launcher
-
-```scala
 trait JobLauncher[F[_]] {
-  /** Launch a Cloud Run Job with the given event data.
-    *
-    * @param jobName   Name of the Cloud Run Job to execute
-    * @param event     The PipelineEvent to pass as environment/args
-    * @param resources Resource limits for this execution
-    * @return Execution ID
-    */
-  def launch(
-      jobName: String,
-      event: io.circe.Json,
-      resources: ResourceRequirements
-  ): F[String]
+  def launch(jobName: String, event: io.circe.Json, resources: ResourceRequirements): F[String]
 }
 
 object JobLauncher {
-
   def make[F[_]: Async](
       projectId: String,
       region: String
   ): JobLauncher[F] =
     new JobLauncher[F] {
-      def launch(
-          jobName: String,
-          event: io.circe.Json,
-          resources: ResourceRequirements
-      ): F[String] =
+      def launch(jobName: String, event: io.circe.Json, resources: ResourceRequirements): F[String] =
         Async[F].blocking {
-          // TODO: Use Cloud Run Admin API to create a job execution
-          //
+          // TODO: Use Cloud Run Admin API to create job execution
           // val client = com.google.cloud.run.v2.JobsClient.create()
           // val request = RunJobRequest.newBuilder()
           //   .setName(s"projects/$projectId/locations/$region/jobs/$jobName")
@@ -110,19 +82,10 @@ object JobLauncher {
         }
     }
 }
-```
 
----
+// Event Router
 
-## Event Router
-
-Maps eventType to target Cloud Run Job name. Add routes when new pipeline apps deployed.
-
-```scala
-final case class EventRoute(
-    eventType: String,
-    targetJobName: String
-)
+final case class EventRoute(eventType: String, targetJobName: String)
 
 object EventRouter {
   val routes: Map[String, String] = Map(
@@ -132,26 +95,16 @@ object EventRouter {
     "user.profile.updated" -> "repcheck-scoring-engine",
     "snapshot.requested"   -> "repcheck-snapshot-service"
   )
-
-  def targetJob(eventType: String): Option[String] =
-    routes.get(eventType)
+  def targetJob(eventType: String): Option[String] = routes.get(eventType)
 }
-```
 
----
+// Orchestrator Logic
 
-## Orchestrator Logic
-
-```scala
 trait Orchestrator[F[_]] {
-  /** Process all pending messages in the queue.
-    * @return Number of messages processed (launched + re-enqueued + dead-lettered)
-    */
   def processQueue(): F[Int]
 }
 
 object Orchestrator {
-
   final case class OrchestratorConfig(
       projectId: String,
       region: String,
@@ -169,58 +122,46 @@ object Orchestrator {
       jobLauncher: JobLauncher[F]
   ): Orchestrator[F] =
     new Orchestrator[F] {
-
       def processQueue(): F[Int] =
         subscriber.pullAndProcess[io.circe.Json](
           config.maxMessagesPerRun,
           handleEvent
         )
 
-      private def handleEvent(
-          event: PipelineEvent[io.circe.Json]
-      ): F[Unit] =
+      private def handleEvent(event: PipelineEvent[io.circe.Json]): F[Unit] =
         EventRouter.targetJob(event.eventType) match {
           case None =>
-            // Log WARN: unknown event type, dead-letter immediately
+            // TODO: Log WARN: s"Unknown event type: ${event.eventType}, dead-lettering"
             deadLetterPublisher.publish(event).void
 
           case Some(jobName) =>
             for {
               available <- capacityChecker.hasCapacity(event.resources)
-
               _ <-
                 if (available) {
-                  // Log INFO: launching job
-                  jobLauncher
-                    .launch(jobName, event.payload, event.resources)
-                    .void
+                  // TODO: Log INFO: s"Launching $jobName for event ${event.eventId}"
+                  jobLauncher.launch(jobName, event.payload, event.resources).void
                 } else if (event.retryCount >= event.maxRetries) {
-                  // Log ERROR: max retries exhausted, GCP Monitoring will alert
+                  // TODO: Log ERROR: s"Dead-lettering event ${event.eventId} after ${event.retryCount} retries"
                   deadLetterPublisher.publish(event).void
                 } else {
-                  // Log INFO: re-enqueuing with incremented retry count
                   val requeued = event.copy(retryCount = event.retryCount + 1)
+                  // TODO: Log INFO: s"Re-enqueuing event ${event.eventId} (retry ${requeued.retryCount}/${event.maxRetries})"
                   publisher.publish(requeued).void
                 }
             } yield ()
         }
     }
 }
-```
 
----
+// Orchestrator App Entry Point
 
-## Orchestrator App Entry Point
-
-```scala
 // TODO: Uncomment and implement when ready
 //
 // object OrchestratorApp extends IOApp {
 //   override def run(args: List[String]): IO[ExitCode] =
 //     for {
 //       config <- ConfigLoader.load[OrchestratorConfig]("orchestrator")
-//
-//       // Set up all dependencies
 //       _ <- (
 //         PubSubSubscriber.make[IO](...),
 //         PubSubPublisher.make[IO](...),  // main topic (re-enqueue)
@@ -232,12 +173,10 @@ object Orchestrator {
 //           config, subscriber, publisher, deadLetterPublisher,
 //           capacityChecker, jobLauncher
 //         )
-//
 //         orchestrator.processQueue().flatMap { count =>
 //           IO.println(s"Processed $count messages")
 //         }
 //       }
 //     } yield ExitCode.Success
 // }
-```
 ```

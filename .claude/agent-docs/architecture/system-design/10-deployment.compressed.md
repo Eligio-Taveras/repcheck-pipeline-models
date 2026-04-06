@@ -72,20 +72,4 @@ graph TB
     JOB_SCORING --> DB
 ```
 
-## Infrastructure
-
-**Compute:** Cloud Run Jobs (serverless, scheduled via Cloud Scheduler)  
-**Data:** AlloyDB (PostgreSQL) + GCS (prompt configs, instruction blocks, user profiles)  
-**Messaging:** Pub/Sub (event-driven triggers between pipelines)  
-**External:** Congress.gov API (bill/vote/member data), LLM APIs (Claude, Gemini, OpenAI)
-
-## Pipelines
-
-| Pipeline | Trigger | Input | Output | Purpose |
-|----------|---------|-------|--------|---------|
-| bills-pipeline | Scheduler | Congress.gov | bill-events (T1) | Fetch bills, text, metadata |
-| votes-pipeline | Scheduler | Congress.gov | vote-events (T2) | Fetch roll-call votes, member votes |
-| members-pipeline | Scheduler | Congress.gov | — | Fetch member profiles, contact info |
-| amendments-pipeline | Scheduler | Congress.gov | — | Fetch amendments, sponsorship |
-| bill-analysis-pipeline | bill-events, user-profile-updates | Bill text, user profiles, GCS prompts | analysis-events (T3) | LLM analysis of bill impact on user interests |
-| scoring-pipeline | vote-events, analysis-events, user-profile-updates | Vote data, analysis results, user profiles, GCS prompts | Scoring DB records | LLM-based vote scoring against user values |
+**Architecture Overview:** Serverless event-driven pipeline on GCP. Cloud Scheduler triggers ingestion jobs on schedule. Data pipelines emit Pub/Sub events triggering LLM analysis and scoring. All jobs read/write AlloyDB and external APIs. Prompt configs stored in GCS.

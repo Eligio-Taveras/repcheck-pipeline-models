@@ -2,14 +2,20 @@
 
 # Pattern: DTO/DO Layering
 
-## When To Use
+## When To Use This Pattern
 - Any new data source (Congress.gov votes, members, amendments)
-- External API response shape differs from storage shape
-- Multiple external sources produce same logical entity
+- External API where response shape differs from storage shape
+- Multiple external sources producing same logical entity
+
+## Source Files
+- `gov-apis/src/main/scala/congress/gov/DTOs/GovSite/LegislativeBillDTOGovSite.scala` — GovSite decoder
+- `gov-apis/src/main/scala/congress/gov/DTOs/LegislativeBillDTO.scala` — Internal DTO
+- `gov-apis/src/main/scala/congress/gov/DTOs/Internal/LegislativeBillDTO.scala` — Circe codecs
+- `gov-apis/src/main/scala/congress/gov/DOs/LegislativeBillDO.scala` — Domain Object
 
 ## Layer 1: GovSite DTO (External API Shape)
 
-Maps Congress.gov API field names to internal canonical names. Only place external field names appear in codebase.
+Maps Congress.gov API field names to internal canonical names. Only place external field names appear.
 
 ```scala
 // File: gov-apis/src/main/scala/congress/gov/DTOs/GovSite/LegislativeBillDTOGovSite.scala
@@ -26,13 +32,13 @@ object LegislativeBillDTOGovSite {
 
   import common.Serializers.*
 
-  // Maps external field names to internal DTO shape. API: "number" → "bill_id", "type" → "bill_type"
+  // Maps external field names to internal canonical names
   implicit val govSiteDecoder: Decoder[LegislativeBillDTO] =
     (c: io.circe.HCursor) =>
       for {
         congress <- c.downField("congress").as[Int]
-        bill_id <- c.downField("number").as[String]
-        bill_type <- c.downField("type").as[String]
+        bill_id <- c.downField("number").as[String]     // API: "number" → Internal: "bill_id"
+        bill_type <- c.downField("type").as[String]      // API: "type" → Internal: "bill_type"
         latestAction <- c.downField("latestAction").as[LatestAction]
         originChamber <- c.downField("originChamber").as[String]
         originChamberCode <- c.downField("originChamberCode").as[String]
@@ -59,7 +65,7 @@ object LegislativeBillDTOGovSite {
 
 ## Layer 2: Internal DTO (Canonical Shape)
 
-Canonical naming convention. Raw types (String, LocalDate). Includes `toDO` method for validated conversion to Domain Object.
+Working shape with canonical naming. Contains `toDO` conversion method for validation.
 
 ```scala
 // File: gov-apis/src/main/scala/congress/gov/DTOs/LegislativeBillDTO.scala
@@ -86,8 +92,8 @@ case class LegislativeBillDTO(
 ) {
   def uri: Uri = Uri.unsafeFromString(url)
 
-  // KEY CONVERSION: DTO → DO. Validates bill_type (BillTypes enum), converts LocalDate → ZonedDateTime UTC midnight, url String → Uri.
-  // Returns Either[String, LegislativeBillDO] (Left = validation error, Right = validated DO).
+  // Boundary between unvalidated API data and validated domain data
+  // Returns Either[String, DO] for validation errors
   def toDO: Either[String, LegislativeBillDO] =
     BillTypes.fromString(bill_type).map { billType =>
       LegislativeBillDO(
@@ -98,6 +104,7 @@ case class LegislativeBillDTO(
         originChamber,
         originChamberCode,
         title,
+        // LocalDate → ZonedDateTime at midnight UTC
         ZonedDateTime.of(LocalDateTime.of(updateDate, LocalTime.of(0, 0)), ZoneId.of("UTC")),
         updateDateIncludingText,
         Uri.unsafeFromString(url)
@@ -108,7 +115,7 @@ case class LegislativeBillDTO(
 
 ## Layer 2b: Internal Codecs (Semi-Auto Derivation)
 
-Circe codecs for internal serialization (tests, caching). Separate file keeps DTO case class clean.
+Separate file for Circe codecs using semi-auto derivation. For internal serialization only.
 
 ```scala
 // File: gov-apis/src/main/scala/congress/gov/DTOs/Internal/LegislativeBillDTO.scala
@@ -124,14 +131,15 @@ import org.http4s.EntityDecoder
 
 import congress.gov.DTOs.LegislativeBillDTO
 
-// Semi-auto derivation for internal use. GovSite decoder (Layer 1) handles external deserialization with field name mapping.
+// Internal codecs via semi-auto derivation, assumes exact field name match
+// GovSite decoder (Layer 1) handles external API with different field names
 object LegislativeBillDTO {
   implicit val decoder: Decoder[LegislativeBillDTO] =
     deriveDecoder[LegislativeBillDTO]
   implicit val encoder: Encoder[LegislativeBillDTO] =
     deriveEncoder[LegislativeBillDTO]
 
-  // http4s EntityDecoder: client.expect[LegislativeBillDTO](uri) auto-parses JSON response.
+  // http4s EntityDecoder bridges Circe and http4s for client.expect[LegislativeBillDTO](uri)
   implicit def entityDecoder[F[_]: Concurrent]
   : EntityDecoder[F, LegislativeBillDTO] =
     org.http4s.circe.jsonOf[F, LegislativeBillDTO]
@@ -140,7 +148,7 @@ object LegislativeBillDTO {
 
 ## Layer 3: Domain Object (Storage Shape)
 
-Validated types (enums, Uri). Doobie persistence via `saveBill`. No manual Java Map.
+Validated types, persisted via Doobie to AlloyDB. No manual Java Map needed.
 
 ```scala
 // File: gov-apis/src/main/scala/congress/gov/DOs/LegislativeBillDO.scala
@@ -169,7 +177,8 @@ case class LegislativeBillDO(
     updateDateIncludingText: ZonedDateTime,
     url: Uri
 ) {
-  // AlloyDB persistence. Doobie auto-derives Read/Write from case class. ON CONFLICT DO UPDATE = idempotent upsert.
+  // Doobie auto-derives Read/Write from case class fields
+  // ON CONFLICT DO UPDATE provides idempotent upsert semantics
   def saveBill[F[_]: Async](xa: Transactor[F], logger: Logger): F[Unit] = {
     val table = Tables.bills
     Async[F].blocking(logger.info(s"Saving legislative bill with URL: ${this.url}")) >>
@@ -194,35 +203,47 @@ case class LegislativeBillDO(
 }
 ```
 
-## Flow
+## The Three-Layer Flow
 
 ```
-Congress.gov API JSON → GovSite Decoder (external field names) → Internal DTO (raw String/LocalDate)
-→ toDO validation → Domain Object (validated enums/Uri, ZonedDateTime) → saveBill (Doobie SQL, AlloyDB)
+Congress.gov API Response (JSON)
+    ↓
+GovSite Decoder (Layer 1)
+    Maps: "number" → bill_id, "type" → bill_type
+    ↓
+Internal DTO (Layer 2)
+    Raw types: bill_type String, url String
+    Has toDO: Either[String, DO]
+    ↓
+Domain Object (Layer 3)
+    Validated: billType BillTypes enum, url Uri
+    saveBill to AlloyDB via Doobie
 ```
 
 ## How to Create a New DTO/DO Layer
 
-1. **GovSite Decoder**: `DTOs/GovSite/YourEntityDTOGovSite.scala` — manual Decoder mapping external field names
-2. **Internal DTO**: `DTOs/YourEntityDTO.scala` — canonical names, `toDO: Either[String, YourEntityDO]`
-3. **Internal Codecs**: `DTOs/Internal/YourEntityDTO.scala` — `deriveDecoder`/`deriveEncoder`
-4. **Domain Object**: `DOs/YourEntityDO.scala` — validated types, Doobie persistence method
+1. **GovSite Decoder** — `DTOs/GovSite/YourEntityDTOGovSite.scala` with manual `Decoder` mapping external names
+2. **Internal DTO** — `DTOs/YourEntityDTO.scala` with canonical names and `toDO: Either[String, YourEntityDO]`
+3. **Internal Codecs** — `DTOs/Internal/YourEntityDTO.scala` with `deriveDecoder`/`deriveEncoder`
+4. **Domain Object** — `DOs/YourEntityDO.scala` with validated types and Doobie persistence
 
-Example VoteDO:
+Example for VoteDTO/VoteDO:
 ```scala
-case class VoteDTO(vote_id: String, chamber: String, result: String) {
+// DTO has raw strings, validates via toDO
+case class VoteDTO(vote_id: String, chamber: String, result: String, ...) {
   def toDO: Either[String, VoteDO] =
     for {
       chamber <- Chamber.fromString(chamber)
       result <- VoteResult.fromString(result)
-    } yield VoteDO(vote_id, chamber, result)
+    } yield VoteDO(vote_id, chamber, result, ...)
 }
 
-case class VoteDO(voteId: String, chamber: Chamber, result: VoteResult) {
+// DO has validated enums, persisted via Doobie
+case class VoteDO(voteId: String, chamber: Chamber, result: VoteResult, ...) {
   def saveVote[F[_]: Async](xa: Transactor[F], logger: Logger): F[Unit] =
-    sql"""INSERT INTO ${Tables.votes} (vote_id, chamber, result)
-          VALUES ($voteId, ${chamber.toString}, ${result.toString})
-          ON CONFLICT (vote_id) DO UPDATE SET result = EXCLUDED.result
+    sql"""INSERT INTO ${Tables.votes} (vote_id, chamber, result, ...)
+          VALUES ($voteId, ${chamber.toString}, ${result.toString}, ...)
+          ON CONFLICT (vote_id) DO UPDATE SET result = EXCLUDED.result, ...
        """.update.run.transact(xa).void
 }
 ```

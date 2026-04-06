@@ -2,9 +2,9 @@
 
 # Pattern: Enum with Safe Parsing
 
-Scala 3 enums with `Either`-based `fromString` parsing and custom Circe codecs. Parsing never throws — it returns `Either[Error, EnumValue]`. Each enum has a unique error type for traceability. Circe decoders use `.emap` to bridge the `Either` into the decoder pipeline.
+Scala 3 enums with `Either`-based `fromString` parsing and custom Circe codecs. Parsing never throws — returns `Either[Error, EnumValue]`. Each enum has a unique error type for traceability. Circe decoders use `.emap` to bridge the `Either` into decoder pipeline.
 
-**When To Use:**
+## When To Use
 - Fixed set of domain values (bill types, chambers, vote results, format types)
 - External APIs send enum values as strings requiring validation
 
@@ -34,10 +34,8 @@ enum BillTypes(val value: String) {
 }
 
 object BillTypes {
-  // Scala 3 enum with value parameter; .toString gives variant name, .value gives API string.
-  // SAFE PARSING: returns Either, never throws. Carries error message instead of Option silence.
-  // Explicit match allows compile-time exhaustiveness checking if enum cases change.
-  // Match values ("HR", "S", etc.) are Congress.gov API abbreviations, differ from .value strings.
+  // SAFE PARSING — returns Either, never throws. Explicit match ensures compile-time exhaustiveness.
+  // Match values are Congress.gov API abbreviations (differ from enum .value strings).
   def fromString(value: String): Either[String, BillTypes] =
     value match {
       case "HR"      => Right(BillTypes.HouseBill)
@@ -69,7 +67,7 @@ package congress.gov.DTOs.Internal
 
 import io.circe.{Decoder, Encoder}
 
-// UNIQUE ERROR TYPE per enum — exact error traceability in logs. Extends Exception for effect system.
+// Unique error type per enum — provides type-safe error handling and clear logging.
 case class UnrecognizedFormatType(text: String)
     extends Exception(s"Unrecognized FormatType: '$text'")
 
@@ -80,7 +78,7 @@ enum FormatType(val text: String) {
 }
 
 object FormatType {
-  // Same Either pattern as BillTypes, returns unique error type for type-safe downstream handling.
+  // Returns unique error type for type-safe downstream handling.
   def fromString(text: String): Either[UnrecognizedFormatType, FormatType] =
     text match {
       case "Formatted Text" => Right(FormatType.formattedText)
@@ -89,12 +87,12 @@ object FormatType {
       case other            => Left(UnrecognizedFormatType(other))
     }
 
-  // Circe ENCODER: FormatType → JSON string via contramap
+  // Encodes FormatType → JSON string via .text field.
   implicit val encoder: Encoder[FormatType] =
     Encoder.encodeString.contramap(_.text)
 
-  // Circe DECODER: JSON string → FormatType. Uses .emap (Either-map) to bridge fromString's Either into decoder pipeline.
-  // Standard pattern: decode raw string → emap to validate via Either → .left.map to convert error to String (Circe requirement).
+  // Decodes JSON string → FormatType. Uses .emap to bridge Either into Circe pipeline.
+  // If fromString returns Left, decoder fails with error message. Standard pattern for enum decoding.
   implicit val decoder: Decoder[FormatType] = Decoder.decodeString.emap { str =>
     fromString(str).left.map(_.getMessage)
   }
@@ -108,9 +106,9 @@ object FormatType {
 | Aspect | BillTypes | FormatType |
 |--------|-----------|------------|
 | Error type | `String` | Unique `UnrecognizedFormatType` exception |
-| Circe codecs | None (DTO manual decoder) | `encoder`/`decoder` via emap |
-| Parsing location | DTO.toDO conversion | Circe decoder (JSON parse time) |
-| Use case | Enums parsed during DTO→DO | Enums in JSON needing auto-decode |
+| Circe codecs | None (DTO.toDO conversion) | `encoder`/`decoder` via emap |
+| Parsing location | DTO→DO conversion | Circe decoder (JSON parsing) |
+| Use case | Enums during DTO conversion | Enums embedded in JSON needing auto-decoding |
 
 ---
 

@@ -8,7 +8,7 @@ Standalone library (`repcheck-prompt-engine-bills`) that composes LLM prompts fo
 
 ### What This Component Does
 
-The prompt engine assembles the prompt string sent to the LLM. It does NOT call the LLM — that is the LLM adapter's job (Component 10). Sole responsibility: assemble prompt string from GCS-stored instruction blocks.
+The prompt engine assembles prompt strings for consumption by the LLM adapter (Component 10). It loads instruction blocks from GCS, resolves profiles, injects dynamic context, applies weight translation, and returns the final prompt string.
 
 ```
 GCS (instruction blocks + profiles)
@@ -27,15 +27,14 @@ Assembled prompt string → bill-analysis-pipeline (Component 10) → LLM adapte
 
 ### No Hardcoded Prompts
 
-**All prompt fragments live in GCS. Prompt engines are loaders + assemblers only.** Zero prompt text in source code — all instructional content stored in GCS and loaded at runtime.
-
-- Prompt wording tuned without redeploying code
-- A/B testing requires only GCS file changes
-- Prompt versioning uses semver in filenames (e.g., `fiscal-lens-v1.2.0.yaml`)
+**All prompt fragments live in GCS. Prompt engines are loaders + assemblers only.** Zero prompt text in source code. All instructional content stored in GCS and loaded at runtime. This enables:
+- Prompt tuning without redeployment
+- A/B testing via GCS file changes only
+- Semver-based prompt versioning (e.g., `fiscal-lens-v1.2.0.yaml`)
 
 ### Tiered Analysis Profiles
 
-Bill-analysis-pipeline (Component 10) uses three LLM passes with different model tiers:
+Three LLM passes with different model tiers:
 
 | Pass | Model | Applies To | Analysis Type |
 |------|-------|-----------|---------------|
@@ -43,36 +42,33 @@ Bill-analysis-pipeline (Component 10) uses three LLM passes with different model
 | Pass 2 | Sonnet | Filtered bills | Pork detection, impact analysis, stance, fiscal |
 | Pass 3 | Opus | Rare/flagged bills | Ambiguity resolution, cross-bill analysis |
 
-Each pass has its own **prompt profile** — different combination of instruction blocks assembled in different order. Prompt engine provides one profile per pass. Bill-analysis-pipeline selects profile based on pass routing rules.
+Each pass has its own prompt profile — different combination of instruction blocks assembled differently. Bill-analysis-pipeline selects profile based on pass routing rules.
 
 ### Bill Text Decomposition Support
 
-Bill text can be extremely large. Raw text cannot be injected into single LLM context window. Bill-analysis-pipeline (Component 10) owns **decomposition orchestration** — text parsing (Ollama sidecar), embedding (DJL/ONNX), and clustering (Smile) are free, in-process. Only **concept simplification** calls external LLM using prompts from this component.
+Bill text decomposition (parsing, embedding, clustering) owned by Component 10 using local, free tools (Ollama sidecar, DJL/ONNX, Smile). Only **concept simplification** step calls external LLM using prompts from this component.
 
 ```
-Raw bill text (XML, plain text, PDF-extracted)
+Raw bill text (any format: XML, plain text, PDF-extracted)
     |
     v
-Component 10: Text parsing / section identification (Ollama — free, local)
+Component 10: Text parsing / section identification (Ollama sidecar)
     |
     v
-Component 10: Section embedding (DJL + ONNX, 384-dim — free, in-process)
+Component 10: Section embedding (DJL + ONNX, 384-dim)
     |
     v
-Component 10: Semantic clustering (Smile k-means/DBSCAN — free, in-process)
+Component 10: Semantic clustering (Smile k-means/DBSCAN)
     |
     v
-Component 10: Persist sections + groups to AlloyDB
+Component 10 calls LLM with Component 8 prompt: "Simplify this concept group" (Haiku)
     |
-    v
-Component 10 calls LLM with Component 8 prompt: "Simplify this concept group"
-    |   (concept-simplification profile — Haiku, ~$0.001/group)
     v
 Simplified concept summaries → persisted to bill_concept_groups
     |
     v
-Component 10 calls LLM with Component 8 prompt: Pass 1/2/3 analysis
-    |   (analysis profiles, with simplified concepts as context)
+Component 10 calls LLM with Component 8 prompt: Pass 1/2/3 analysis (using simplified concepts as context)
+    |
     v
 Structured analysis output → persisted to analysis layer tables
 ```
@@ -81,13 +77,13 @@ Prompt engine provides **decomposition and analysis profiles**:
 
 | Profile | Purpose | Used By |
 |---------|---------|---------|
-| `concept-simplification` | Simplify group of related bill sections into coherent summary | Component 10 decomposition (Haiku) |
-| `section-classification` | Classify bill section by topic/policy area — fallback for insufficient embedding clustering | Component 10 grouping (Haiku) |
+| `concept-simplification` | Simplify related bill sections into coherent summary | Component 10 decomposition step (Haiku) |
+| `section-classification` | Classify bill section by topic/policy area — fallback for insufficient embedding clustering | Component 10 grouping step (Haiku, rare) |
 | `pass1-extraction` | Full extraction/classification/summary from simplified concepts | Component 10 Pass 1 |
 | `pass2-deep-analysis` | Pork, impact, stance, fiscal analysis from simplified concepts | Component 10 Pass 2 |
 | `pass3-ambiguity-resolution` | Cross-concept ambiguity resolution | Component 10 Pass 3 |
 
-**Decomposition logic vs prompts:** Component 10 decides *when* to decompose, *how* to parse, *how* to embed, and *how* to cluster. Component 8 provides the *prompts* for LLM-assisted simplification and fallback section-classification. All instructional content in GCS; orchestration in pipeline.
+Component 10 owns decomposition *logic* and *orchestration*; Component 8 provides decomposition *prompts*. All instructional content in GCS, orchestration in pipeline.
 
 ### Base Traits (from Component 1 §1.7)
 
@@ -97,12 +93,12 @@ Prompt engine provides **decomposition and analysis profiles**:
 | `InstructionBlock` | Atomic prompt fragment: name, stage, weight, version, content |
 | `StageConfig` | Stage + block names + weight for profile entry |
 | `PromptProfile` | Named chain of `StageConfig` entries |
-| `ChainAssembler` | Trait that orders stages, applies weights, merges blocks, injects context |
-| `WeightTranslator` | Converts weight (0.0–1.0) to emphasis markers |
+| `ChainAssembler` | Trait: order stages, apply weights, merge blocks, inject context |
+| `WeightTranslator` | Convert weight (0.0-1.0) to emphasis markers |
 
 ### Output Schemas (from Component 1 §1.6)
 
-Referenced by name in Output stage blocks; LLM adapter uses actual schema types for response parsing:
+Referenced by name in Output stage blocks (tell LLM what JSON to return):
 
 | Schema | Used By |
 |--------|---------|
@@ -112,6 +108,8 @@ Referenced by name in Output stage blocks; LLM adapter uses actual schema types 
 | `PorkDetectionOutput` | Pass 2 |
 | `ImpactAnalysisOutput` | Pass 2 |
 | `FiscalEstimateOutput` | Pass 2 |
+
+Prompt engine references by name in GCS; LLM adapter uses actual schema types for response parsing.
 
 ### GCS Layout
 
@@ -156,7 +154,7 @@ gs://repcheck-prompt-configs/
 repo: prompt-configs/bills/  ── git push ──→  GitHub Actions  ──→  gs://repcheck-prompt-configs/bills/
 ```
 
-Version-controlled in repo under `prompt-configs/bills/`. GitHub Actions deploys to GCS on merge to main. Prompt engine reads from GCS at runtime. Local file fallback for development.
+Blocks and profiles version-controlled in repo under `prompt-configs/bills/`. GitHub Actions deploys to GCS on merge. Prompt engine reads from GCS at runtime. Local file fallback for development.
 
 ---
 
@@ -165,16 +163,8 @@ Version-controlled in repo under `prompt-configs/bills/`. GitHub Actions deploys
 | Area | Status | Description |
 |------|--------|-------------|
 | 8.1 GCS Block Loader | New | Loads instruction blocks and profiles from GCS with version filtering and local fallback |
-| 8.2 Bill Analysis Profiles | New | Defines decomposition and analysis profiles, and the bill-specific block catalog |
-| 8.3 Bill Prompt Assembler | New | Bill-specific `ChainAssembler` implementation with context injection for bill concepts, amendments, and metadata |
-
-## Component Routing Table
-
-| Task | Area File |
-|------|-----------|
-| Loading instruction blocks and profiles from GCS | [8.1 GCS Block Loader](08-prompt-engine-bills/08.1-gcs-block-loader.md) |
-| Decomposition and analysis profile definitions, block catalog | [8.2 Bill Analysis Profiles](08-prompt-engine-bills/08.2-bill-analysis-profiles.md) |
-| Bill-specific prompt assembly with context injection | [8.3 Bill Prompt Assembler](08-prompt-engine-bills/08.3-bill-prompt-assembler.md) |
+| 8.2 Bill Analysis Profiles | New | Decomposition and analysis profiles, bill-specific block catalog |
+| 8.3 Bill Prompt Assembler | New | Bill-specific `ChainAssembler` implementation with context injection |
 
 ---
 
@@ -186,40 +176,39 @@ Version-controlled in repo under `prompt-configs/bills/`. GitHub Actions deploys
 repcheck-prompt-engine-bills/
 └── repcheck.prompt.bills
     ├── loader
-    │   ├── BlockLoader                    (8.1)
-    │   └── ProfileLoader                  (8.1)
+    │   ├── BlockLoader
+    │   └── ProfileLoader
     ├── profiles
-    │   └── BillAnalysisProfiles           (8.2)
+    │   └── BillAnalysisProfiles
     ├── assembler
-    │   ├── BillPromptAssembler            (8.3)
-    │   └── BillContextInjector            (8.3)
+    │   ├── BillPromptAssembler
+    │   └── BillContextInjector
     ├── config
-    │   └── BillPromptEngineConfig         (8.1)
+    │   └── BillPromptEngineConfig
     └── errors
-        ├── BlockLoadFailed                (8.1)
-        ├── ProfileLoadFailed              (8.1)
-        └── ContextInjectionFailed         (8.3)
+        ├── BlockLoadFailed
+        ├── ProfileLoadFailed
+        └── ContextInjectionFailed
 ```
 
 ### Dependencies
 
 ```
 repcheck-prompt-engine-bills
-├── repcheck-shared-models               (published artifact — Component 1)
-│   ├── PromptStage, InstructionBlock, StageConfig, PromptProfile   (§1.7)
-│   ├── ChainAssembler, WeightTranslator                            (§1.7)
-│   └── BillSummaryOutput, TopicClassificationOutput, etc.          (§1.6)
-└── GCS Java SDK                         (runtime dependency)
-    └── Wrapped in Sync[F] per project conventions
+├── repcheck-shared-models (Component 1)
+│   ├── PromptStage, InstructionBlock, StageConfig, PromptProfile
+│   ├── ChainAssembler, WeightTranslator
+│   └── Output schemas (referenced by name only)
+└── GCS Java SDK (wrapped in Sync[F])
 ```
 
-**No dependency on pipeline-models or ingestion-common.** Pure library — no Pub/Sub, Doobie, or pipeline execution infrastructure. Only RepCheck dependency: `shared-models`.
+**No dependency on pipeline-models or ingestion-common.** Pure library with only `shared-models` as RepCheck dependency.
 
 ### Testing Strategy
 
 | Test Type | Scope | Infrastructure |
 |-----------|-------|---------------|
-| Unit tests | `ChainAssembler` integration, weight translation, context injection, profile validation | MockitoScala (mock GCS client) |
+| Unit tests | `ChainAssembler` integration, weight translation, context injection, profile validation | MockitoScala |
 | GCS integration tests | Block loading, version filtering, profile resolution | Testcontainers (fake GCS) or local file fallback |
-| Prompt assembly tests | Full profile assembly with real blocks → verify prompt structure and content ordering | Local file fallback |
+| Prompt assembly tests | Full profile assembly with real blocks, verify prompt structure and content ordering | Local file fallback |
 | Contract tests | Assembled prompts contain expected output schema references | Unit tests |

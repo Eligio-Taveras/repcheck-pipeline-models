@@ -26,13 +26,16 @@ import org.http4s.EntityDecoder
 import congress.gov.DTOs.LegislativeBillDTO
 
 object LegislativeBillDTO {
-  // Semi-auto derivation generates encoder/decoder from case class fields. Field names in JSON must EXACTLY match case class field names.
+  // Semi-auto derivation generates encoder/decoder from case class fields.
+  // Field names in JSON must EXACTLY match case class field names.
+  // Semi-auto (not full auto) makes implicit scope explicit.
   implicit val decoder: Decoder[LegislativeBillDTO] =
     deriveDecoder[LegislativeBillDTO]
   implicit val encoder: Encoder[LegislativeBillDTO] =
     deriveEncoder[LegislativeBillDTO]
 
-  // http4s bridge — creates EntityDecoder from Circe Decoder for automatic JSON response parsing.
+  // http4s bridge — creates EntityDecoder from Circe Decoder.
+  // Lets http4s client.expect[T](uri) automatically parse JSON responses.
   implicit def entityDecoder[F[_]: Concurrent]
   : EntityDecoder[F, LegislativeBillDTO] =
     org.http4s.circe.jsonOf[F, LegislativeBillDTO]
@@ -58,13 +61,14 @@ object LegislativeBillDTOGovSite {
 
   import common.Serializers.*
 
-  // Manual HCursor decoder for field name mapping. c.downField("name").as[Type] navigates and decodes. For-comprehension works because Decoder.Result is Either — any field failure aborts with descriptive error.
+  // Manual HCursor decoder for field name mapping. Congress.gov API returns "number" → maps to bill_id, "type" → bill_type.
+  // c.downField navigates JSON structure; for-comprehension fails on first decode error with descriptive message.
   implicit val govSiteDecoder: Decoder[LegislativeBillDTO] =
     (c: io.circe.HCursor) =>
       for {
         congress <- c.downField("congress").as[Int]
-        bill_id <- c.downField("number").as[String]
-        bill_type <- c.downField("type").as[String]
+        bill_id <- c.downField("number").as[String]     // MAPPING: "number" → bill_id
+        bill_type <- c.downField("type").as[String]      // MAPPING: "type" → bill_type
         latestAction <- c.downField("latestAction").as[LatestAction]
         originChamber <- c.downField("originChamber").as[String]
         originChamberCode <- c.downField("originChamberCode").as[String]
@@ -84,7 +88,7 @@ object LegislativeBillDTOGovSite {
 
 ## Approach 3: Custom Codecs for Domain Types
 
-Use for types not natively supported (dates, enums, URIs).
+Use for types that aren't natively supported (dates, enums, URIs).
 
 ```scala
 // File: gov-apis/src/main/scala/common/Serializers.scala
@@ -97,7 +101,9 @@ import java.time.format.DateTimeFormatter
 import io.circe.{Decoder, Encoder}
 
 object Serializers {
-  // Decoder.decodeString.emap: decode raw String, transform with emap, Left = error message. scala.util.Try wraps parsing exceptions.
+  // Custom ZonedDateTime decoder. Circe lacks built-in support due to format variation.
+  // Decoder.decodeString.emap: decode JSON as String, then transform String → Either[String, T].
+  // Left message becomes decoder error.
   implicit val zonedDateTimeDecoder: Decoder[ZonedDateTime] =
     Decoder.decodeString.emap { str =>
       scala.util
@@ -111,7 +117,7 @@ object Serializers {
         })
     }
 
-  // Encoder.encodeString.contramap: start with String encoder, transform input (ZonedDateTime → String), then encode.
+  // Custom ZonedDateTime encoder. Encoder.encodeString.contramap: transform input ZonedDateTime → String before encoding.
   implicit val zonedDateTimeEncoder: Encoder[ZonedDateTime] =
     Encoder.encodeString.contramap[ZonedDateTime](dt =>
       val strVal = dt.format(DateTimeFormatter.ISO_ZONED_DATE_TIME)
@@ -122,7 +128,7 @@ object Serializers {
 
 ## Approach 4: Custom Encoder Reshaping Fields
 
-Use when serialized JSON shape differs from case class shape.
+Use when the serialized JSON shape differs from the case class shape.
 
 ```scala
 // File: gov-apis/src/main/scala/congress/gov/DTOs/LatestAction.scala
@@ -137,7 +143,8 @@ import io.circe.{Decoder, Encoder, HCursor, Json}
 case class LatestAction(actionDate: ZonedDateTime, text: String)
 
 object LatestAction {
-  // Encoder splits single ZonedDateTime field into two JSON fields (actionDate, actionTime). Json.obj creates JSON object from tuples; .asJson uses Circe encoder for each value.
+  // Custom encoder SPLITS single ZonedDateTime into two JSON fields ("actionDate", "actionTime").
+  // Matches Congress.gov API format. Json.obj creates JSON object; .asJson uses Circe encoder for each value.
   implicit val encoder: Encoder[LatestAction] = (a: LatestAction) => {
     Json.obj(
       ("actionDate", a.actionDate.toLocalDate.asJson),
@@ -146,7 +153,8 @@ object LatestAction {
     )
   }
 
-  // Decoder combines two JSON fields (actionDate, optional actionTime) into single ZonedDateTime. .fold provides midnight default if actionTime absent.
+  // Custom decoder COMBINES two JSON fields into one ZonedDateTime.
+  // "actionTime" is optional; .fold provides midnight default if absent.
   implicit val decoder: Decoder[LatestAction] = (c: HCursor) => {
     for {
       actionLocalDate <- c.downField("actionDate").as[LocalDate]
@@ -187,7 +195,7 @@ object VoteDTO {
 object VoteDTOGovSite {
   implicit val decoder: Decoder[VoteDTO] = (c: HCursor) =>
     for {
-      voteId    <- c.downField("roll_call").as[String]
+      voteId    <- c.downField("roll_call").as[String]   // API: roll_call → voteId
       chamber   <- c.downField("chamber").as[String]
       result    <- c.downField("result").as[String]
     } yield VoteDTO(voteId, chamber, result)

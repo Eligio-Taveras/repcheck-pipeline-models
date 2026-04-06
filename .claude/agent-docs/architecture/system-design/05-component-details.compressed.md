@@ -1,56 +1,52 @@
 <!-- GENERATED FILE — DO NOT EDIT. Source: docs/architecture/system-design/05-component-details.md -->
 
-# repcheck Documentation — Compressed for LLM Context
+# repcheck Documentation — LLM Context
 
 ## 1a. `repcheck-shared-models` (Repository)
 
-Published library: domain data types for legislative, user, and analysis data. Used by all repositories.
+**Purpose**: Published library containing domain data types for legislative, user, and analysis data.
 
 **Contents**:
 - **Legislative DOs**: `LegislativeBillDO`, `MemberDO`, `VoteDO`, `AmendmentDO`
 - **Analysis DOs**: `BillAnalysisDO`, `AlignmentScoreDO`
 - **User DOs**: `UserDO`, `PreferenceDO`, `QaResponseDO`
-- **DTOs**: Congress.gov API response models
-- **LLM Output Schemas** (all providers must conform):
+- **DTOs**: Congress.gov API response models (bills, votes, members, amendments)
+- **LLM Output Schemas**: Structured JSON schemas all LLM providers must conform to:
   - `BillSummary`: plain-language summary
-  - `TopicClassification`: topic tags + confidence
-  - `StanceClassification`: stance per topic (conservative/progressive/bipartisan)
+  - `TopicClassification`: topic tags with confidence scores
+  - `StanceClassification`: political stance per topic (conservative/progressive/bipartisan)
   - `PorkDetection`: riders, earmarks, unrelated provisions
   - `ImpactAnalysis`: affected demographics, sectors, regions
   - `FiscalEstimate`: projected cost/savings
 - **Prompt Chain Base Traits**: `InstructionBlock`, `PromptProfile`, `ChainAssembler`, weight translation logic
-- **Serializers & Constants**: Shared serialization (Circe codecs, etc.)
+- **Serializers & Constants**: Circe codecs for ZonedDateTime, etc.
 
-**Depends on**: Nothing (root domain library)
+**Depends on**: Nothing
 
 ---
 
 ## 1b. `repcheck-pipeline-models` (Repository)
 
-Published library: pipeline operational types (event schemas, metadata, configuration).
+**Purpose**: Published library for pipeline operational types — pub/sub events, job metadata, configuration.
 
 **Contents**:
-- **Pub/Sub Event Schemas**:
-  - `BillTextAvailableEvent` → triggers LLM bill analysis
-  - `VoteRecordedEvent` → triggers alignment re-scoring
-  - `AnalysisCompletedEvent` → triggers alignment re-scoring
-  - `UserProfileUpdatedEvent` → triggers alignment re-scoring
-- **Pub/Sub Helpers**: event publisher/subscriber utilities, topic config, serialization
-- **Pipeline Job Metadata**: status tracking (running, succeeded, failed), progress, error types
-- **Pipeline Configuration Types**: scheduling, batch sizes, retry policies, rate limits
-- **AlloyDB Table Constants**: `Tables` object with table name constants
+- **Pub/Sub Event Schemas**: `BillTextAvailableEvent`, `VoteRecordedEvent`, `AnalysisCompletedEvent`, `UserProfileUpdatedEvent`
+- **Pub/Sub Helpers**: Event publisher/subscriber utilities, topic configuration, message serialization
+- **Pipeline Job Metadata**: Status tracking (running, succeeded, failed), progress reporting, error types
+- **Pipeline Configuration Types**: Scheduling, batch sizes, retry policies, rate limits
+- **AlloyDB Table Constants**: `Tables` object with all table name constants
 
-**Depends on**: Nothing (root operational library)
+**Depends on**: Nothing
 
 ---
 
 ## 3. `repcheck-prompt-engine-bills` (Repository)
 
-Composes LLM prompts for bill analysis via configurable instruction blocks assembled into a weighted pipeline chain. Blocks stored as config files in GCS, deployed via GitHub Actions.
+**Purpose**: Composes LLM prompts for bill analysis by assembling configurable instruction blocks into a weighted pipeline chain.
 
-### Instruction Block
+#### Instruction Block
 
-Atomic unit of prompt composition. Named, versioned config file (YAML/JSON) in GCS:
+Atomic unit of prompt composition. Named, versioned YAML/JSON config files stored in GCS:
 
 ```yaml
 # gs://repcheck-prompt-configs/bills/blocks/fiscal-lens.yaml
@@ -66,7 +62,7 @@ content: |
   Focus on CBO-style impact estimation.
 ```
 
-### Block Types
+#### Block Types
 
 | Stage | Purpose | Example |
 |-------|---------|---------|
@@ -77,15 +73,15 @@ content: |
 | `guardrails` | Safety constraints and bias prevention | "Do not express political opinions or party preferences..." |
 | `output` | Output format and schema directives | "Return a JSON object conforming to BillAnalysis schema..." |
 
-### Pipeline Chain Assembly
+#### Pipeline Chain Assembly
 
-Blocks assembled in defined order; chain is **dynamically extensible**:
+Blocks assembled in defined order; dynamically extensible:
 
 ```
 system → persona → lens(es) → context → [custom stages...] → guardrails → output
 ```
 
-**Prompt profile** defines which blocks compose a specific analysis type:
+A **prompt profile** defines which blocks compose a specific analysis type:
 
 ```yaml
 # gs://repcheck-prompt-configs/bills/profiles/full-analysis.yaml
@@ -111,34 +107,32 @@ chain:
     weight: 1.0
 ```
 
-### Weight Semantics
+#### Weight Semantics
 
 Weights (0.0–1.0) control emphasis signaling:
-- **1.0**: Critical — wrapped with strong emphasis ("You MUST...")
-- **0.7–0.9**: Important but flexible — standard instruction
-- **0.3–0.6**: Advisory — preferences ("When possible...", "Consider...")
-- **< 0.3**: Soft suggestion — de-emphasized
+- **1.0**: "You MUST..." (critical)
+- **0.7–0.9**: Standard instruction (important)
+- **0.3–0.6**: "When possible..." (advisory)
+- **< 0.3**: Soft suggestion (de-emphasized)
 
-Assembly engine translates weights into prompt language patterns.
-
-### GCS Integration
+#### GCS Layout
 
 ```
 gs://repcheck-prompt-configs/
   └── bills/
-      ├── blocks/           # Individual instruction blocks
+      ├── blocks/
       │   ├── system/
       │   ├── persona/
       │   ├── lens/
       │   ├── guardrails/
       │   └── output/
-      └── profiles/         # Assembled prompt profiles
+      └── profiles/
           ├── full-analysis.yaml
           ├── summary-only.yaml
           └── pork-detection.yaml
 ```
 
-Config files version-controlled in repo under `prompt-configs/bills/`. GitHub Action deploys updated configs to GCS on merge to main. Module reads from GCS at runtime with local file fallback for development.
+Config files version-controlled in repo under `prompt-configs/bills/`; GitHub Action deploys to GCS on merge to main; runtime reads from GCS with local file fallback.
 
 **Depends on**: `repcheck-shared-models`
 
@@ -146,9 +140,9 @@ Config files version-controlled in repo under `prompt-configs/bills/`. GitHub Ac
 
 ## 4. `repcheck-prompt-engine-users` (Repository)
 
-Composes LLM prompts for user preference interpretation and alignment scoring. Same pipeline-chain architecture as `repcheck-prompt-engine-bills` with own block types, profiles, GCS path.
+**Purpose**: Composes LLM prompts for user preference interpretation and alignment scoring. Same pipeline-chain architecture as `repcheck-prompt-engine-bills`.
 
-### Block Types
+#### Block Types
 
 | Stage | Purpose | Example |
 |-------|---------|---------|
@@ -159,7 +153,7 @@ Composes LLM prompts for user preference interpretation and alignment scoring. S
 | `guardrails` | Fairness and bias constraints | "Score based on voting record only, not party affiliation..." |
 | `output` | Output format for alignment scores | "Return JSON conforming to AlignmentScore schema..." |
 
-### GCS Layout
+#### GCS Layout
 
 ```
 gs://repcheck-prompt-configs/
@@ -182,7 +176,7 @@ gs://repcheck-prompt-configs/
 
 ## 5. Prompt Engine Shared Architecture
 
-Both prompt engine repositories share common assembly mechanism (base trait in `repcheck-shared-models`).
+Both prompt engines share assembly mechanism defined as base trait in `repcheck-shared-models`:
 
 ```mermaid
 graph TB
@@ -222,34 +216,34 @@ repo: prompt-configs/users/ ──push──→ gs://repcheck-prompt-configs/use
 
 ## 6. `repcheck-data-ingestion` (Repository)
 
-Fetches and normalizes Congress.gov API data into AlloyDB. Publishes events for downstream consumers. Multiple SBT projects (one per pipeline plus shared common).
+**Purpose**: Fetches and normalizes Congress.gov API data into AlloyDB. Publishes events for downstream consumers.
 
-### `ingestion-common` (SBT project)
-- Shared infrastructure: `PagingApiBase` trait (generalized), Congress.gov API base client, shared config
+#### `ingestion-common` (SBT project)
+- Shared infrastructure: `PagingApiBase` trait, Congress.gov API base client, ingestion configuration
 - **Depends on**: `repcheck-shared-models`, `repcheck-pipeline-models`
 
-### `bills-pipeline` (SBT project)
+#### `bills-pipeline` (SBT project)
 - **Source**: `api.congress.gov/v3/bill`
-- Paginated fetch with configurable lookback window. Detects new vs. updated bills. Fetches bill text links when available.
-- **Events emitted**: `bill.text.available` (only when bill text becomes available)
+- Paginated fetch with configurable lookback window; detects new vs. updated bills; fetches bill text links when available
+- **Events emitted**: `bill.text.available` (when bill text becomes available)
 - **Storage**: AlloyDB `bills` table
 
-### `votes-pipeline` (SBT project)
+#### `votes-pipeline` (SBT project)
 - **Source**: `api.congress.gov/v3/vote` (House + Senate roll call votes)
-- Fetches roll call votes with member-level positions (Yea/Nay/Present/Not Voting). Links votes to bills.
+- Fetches roll call votes with member-level positions (Yea/Nay/Present/Not Voting); links votes to bills via bill number
 - **Events emitted**: `vote.recorded`
-- **Storage**: AlloyDB `votes` + `vote_positions` tables
+- **Storage**: AlloyDB `votes` table + `vote_positions` table
 
-### `members-pipeline` (SBT project)
+#### `members-pipeline` (SBT project)
 - **Source**: `api.congress.gov/v3/member`
-- Syncs current congress member profiles (name, party, state, district, chamber, terms). Detects new members and changes.
+- Syncs current congress member profiles (name, party, state, district, chamber, terms); detects new members and profile changes
 - **Events emitted**: None
 - **Storage**: AlloyDB `members` table
 
-### `amendments-pipeline` (SBT project)
+#### `amendments-pipeline` (SBT project)
 - **Source**: `api.congress.gov/v3/amendment`
-- Fetches amendments linked to bills. Captures sponsor, description, status, amendment text when available.
-- **Events emitted**: None (consumed on-demand by analysis pipeline)
+- Fetches amendments linked to bills; captures sponsor, description, status, and amendment text when available; amendments read by LLM analysis pipeline on-demand
+- **Events emitted**: None
 - **Storage**: AlloyDB `amendments` table (linked to parent bill)
 
 **Depends on**: `repcheck-shared-models`, `repcheck-pipeline-models`. Each pipeline project depends on `ingestion-common`.
@@ -258,23 +252,27 @@ Fetches and normalizes Congress.gov API data into AlloyDB. Publishes events for 
 
 ## 7. `repcheck-llm-analysis` (Repository)
 
-Analyzes bill texts using pluggable LLM providers to produce structured intelligence. Two SBT projects: adapter library and analysis pipeline.
+**Purpose**: Analyzes bill texts using pluggable LLM providers to produce structured intelligence.
 
-### `llm-adapter` (SBT project)
+#### `llm-adapter` (SBT project)
 
-**Interface**: `LlmProvider` trait:
+**Interface**:
 ```scala
-def analyze[I, O](input: I, schema: OutputSchema[O]): IO[O]
+trait LlmProvider {
+  def analyze[I, O](input: I, schema: OutputSchema[O]): IO[O]
+}
 ```
 
 **Implementations**:
-- `ClaudeProvider` — Anthropic Claude API with structured output (tool use)
+- `ClaudeProvider` — Anthropic Claude with structured output (tool use)
 - `GeminiProvider` — Google Vertex AI with structured output
-- `OpenAiProvider` — OpenAI API with JSON mode / function calling
+- `OpenAiProvider` — OpenAI with JSON mode / function calling
 
-All providers must return JSON conforming to shared output schemas in `shared-models`. Provider-specific structured output features ensure consistency. Provider selection and API keys via config. Support for fallback chains.
+All providers return JSON conforming to shared output schemas. Provider-specific structured output features (Claude tool use, OpenAI function calling, Gemini structured output) ensure consistency.
 
-### `bill-analysis-pipeline` (SBT project)
+**Configuration**: Provider selection and API keys via config; support for fallback chains.
+
+#### `bill-analysis-pipeline` (SBT project)
 
 **Trigger**: Subscribes to `bill.text.available` events.
 
@@ -284,16 +282,16 @@ All providers must return JSON conforming to shared output schemas in `shared-mo
 2. Fetches bill text from AlloyDB
 3. Fetches associated amendments from AlloyDB
 4. **Bill text decomposition** (for large bills):
-   - **Step 1 — Text parsing** (Ollama sidecar): Ollama instance (Cloud Run sidecar) reads bill text (plain text, PDF-extracted, XML) and identifies logical sections with boundaries, headings, numbering. Results persisted to `bill_text_sections`. No API cost.
-   - **Step 2 — In-process embedding** (DJL + ONNX Runtime): Embed each section using DJL with ONNX sentence-transformer (all-MiniLM-L6-v2, ~80MB). Produces 384-dim vectors in-process. Zero API cost.
-   - **Step 3 — Semantic clustering** (Smile ML): Cluster section embeddings (k-means or DBSCAN). Related sections grouped together. Zero cost.
-   - **Step 4 — LLM-assisted simplification** (Haiku API): For each concept group, call Haiku using decomposition prompts from `repcheck-prompt-engine-bills` to produce coherent summary. ~$0.001 per concept group.
-   - **Result**: Decomposition artifacts persisted to AlloyDB (`bill_text_sections`, `bill_concept_groups`, `bill_concept_group_sections`). Reusable across re-analyses.
-   - Decomposition skipped for short bills fitting context window directly.
-   - **Note**: 384-dim DJL embeddings are ephemeral (used for clustering only). 1536-dim embeddings for semantic search generated separately.
+   - **Step 1 — Text parsing** (Ollama sidecar): Ollama instance running as Cloud Run sidecar identifies logical sections with boundaries, headings, numbering; persists to `bill_text_sections`. Zero cost.
+   - **Step 2 — In-process embedding** (DJL + ONNX Runtime): Embed each section using DJL with all-MiniLM-L6-v2 (~80MB, 384-dim vectors). Zero cost.
+   - **Step 3 — Semantic clustering** (Smile ML): Cluster section embeddings using k-means/DBSCAN into concept groups. Zero cost.
+   - **Step 4 — LLM simplification** (Haiku): For each concept group, call Haiku using decomposition prompts from `repcheck-prompt-engine-bills` to produce coherent summary. ~$0.001/group.
+   - **Result**: Decomposition artifacts in AlloyDB (`bill_text_sections`, `bill_concept_groups`, `bill_concept_group_sections`), tied to text version, reusable across re-analyses. Simplified concept summaries serve as input to analysis passes.
+   - **Note**: 384-dim DJL embeddings ephemeral (used only for clustering). 1536-dim embeddings stored in AlloyDB for semantic search generated separately after persistence.
+   - Decomposition skipped for short bills fitting within context window.
 
 5. **Pass 1 (Haiku — all bills)**: Structured extraction + classification
-   - Input: simplified concept summaries (or raw text for short bills)
+   - Input: simplified concept summaries or raw text (short bills)
    - Extract: sponsors, dates, referenced laws, amendment count
    - Classify: policy area/topic tags
    - Generate: plain language summary
@@ -302,25 +300,25 @@ All providers must return JSON conforming to shared output schemas in `shared-mo
 6. **Pass 2 (Sonnet — filtered bills)**: Deep analysis
    - Only bills matching relevance filters (active legislation, recent votes, high-profile)
    - Input: simplified concept summaries + Pass 1 results
-   - Pork/rider detection, impact analysis, stance classification, fiscal estimates
-   - Store in AlloyDB linked to Pass 1
+   - Pork/rider detection, impact analysis, stance classification, fiscal estimates beyond CBO
+   - Store in AlloyDB, linked to Pass 1
 
 7. **Pass 3 (Opus — rare)**: Ambiguity resolution
-   - Only bills flagged as ambiguous by Pass 2 or high-profile/contentious
+   - Only bills flagged as ambiguous by Pass 2
    - Cross-bill interaction analysis
-   - Store linked to Pass 1 + 2
+   - Store in AlloyDB, linked to Pass 1 + 2
 
-8. Publishes `analysis.completed` event.
+8. Publishes `analysis.completed` event after final pass
 
-**Decomposition ownership**: bill-analysis-pipeline owns all decomposition logic (text parsing via Ollama sidecar, in-process embedding via DJL/ONNX, semantic clustering via Smile, orchestration). Uses prompts from `repcheck-prompt-engine-bills` only for Haiku simplification step.
+**Decomposition ownership**: Pipeline owns text parsing (Ollama sidecar), embedding (DJL/ONNX), clustering (Smile), orchestration. Uses prompts from `repcheck-prompt-engine-bills` only for Haiku simplification step.
 
-**Ollama sidecar**: Second container in same Cloud Run Job. Hosts small LLM (e.g., Llama 3.2 1B) for format-agnostic text parsing. Communication via localhost HTTP (`http://localhost:11434`).
+**Ollama sidecar**: Second container in same Cloud Run Job; hosts small LLM (e.g., Llama 3.2 1B) for format-agnostic text parsing (XML, plain text, PDF-extracted). Communication via localhost HTTP.
 
-**Pass routing**: Configurable rules determine Pass 2 and Pass 3 progression. Defaults:
-- Pass 2: bills with active vote activity or in user-tracked policy areas
-- Pass 3: bills where Pass 2 confidence below threshold
+**Pass routing**: Configurable rules; defaults: Pass 2 for bills with active vote activity or in user-tracked policy areas; Pass 3 for bills where Pass 2 confidence < threshold.
 
-**Idempotency**: Re-analysis produces new version, preserving history. **Rate limiting**: Configurable concurrency and limits per provider and tier.
+**Idempotency**: Re-analysis of same bill version produces new analysis version, preserving history.
+
+**Rate limiting**: Configurable concurrency and rate limits per provider and tier.
 
 **Depends on**: `repcheck-shared-models`, `repcheck-pipeline-models`, `repcheck-prompt-engine-bills`. `bill-analysis-pipeline` depends on `llm-adapter`.
 
@@ -328,31 +326,28 @@ All providers must return JSON conforming to shared output schemas in `shared-mo
 
 ## 8. `repcheck-scoring-engine` (Repository)
 
-Computes alignment scores between user political profiles and legislator voting records using LLM-powered reasoning. Two SBT projects: scoring pipeline and score cache writer.
+**Purpose**: Computes alignment scores between user political profiles and legislator voting records using LLM-powered reasoning.
 
-### `scoring-pipeline` (SBT project)
+#### `scoring-pipeline` (SBT project)
 
 **Trigger**: Subscribes to `analysis.completed`, `vote.recorded`, `user.profile.updated` events.
 
 **Behavior**:
-1. For given user + legislator pair:
-   - Read user political profile from AlloyDB (topic preferences, stances, priorities)
-   - Read legislator's voting record from AlloyDB (votes linked to bill analyses)
-   - Read bill analyses from AlloyDB (topics, stances, impact)
-2. Use `prompt-engine-users` to assemble scoring prompt (configured profile, user preferences and voting context as context blocks)
+1. For given user + legislator pair: read user profile, legislator's voting record, bill analyses
+2. Use `prompt-engine-users` to assemble scoring prompt; load configured profile, inject user preferences and voting context as context blocks
 3. Call LLM for structured alignment assessment per topic
 4. Aggregate topic scores into overall alignment percentage
 5. Write pre-computed score to AlloyDB `scores` table (keyed by `user_id`, `member_id`)
 
-**Batch mode**: Triggered by `analysis.completed` or `vote.recorded`, re-score all affected user-legislator pairs. Uses Cloud Run Jobs for parallelism. **Incremental**: Only recomputes scores affected by triggering event.
+**Batch mode**: When triggered by `analysis.completed` or `vote.recorded`, re-score all affected user-legislator pairs using Cloud Run Jobs for parallelism.
 
-### `score-cache` (SBT project)
+**Incremental**: Only recomputes scores affected by triggering event.
+
+#### `score-cache` (SBT project)
 
 Handles writing pre-computed scores to AlloyDB for fast frontend reads.
 
-**Depends on**: `repcheck-shared-models`
-
-### Score Schema (AlloyDB)
+#### Score Schema (AlloyDB)
 
 ```sql
 CREATE TABLE scores (
@@ -372,9 +367,9 @@ CREATE TABLE scores (
 
 ## 9. `repcheck-api-server` (Repository — Future Phase)
 
-Http4s REST API serving pre-computed data to TypeScript frontend.
+**Purpose**: Http4s REST API serving pre-computed data to TypeScript frontend.
 
-**Endpoints** (planned):
+**Planned Endpoints**:
 - `GET /api/legislators/{memberId}/score?userId=` — alignment score
 - `GET /api/user/{userId}/dashboard` — all legislator scores for user's representatives
 - `POST /api/user/{userId}/preferences` — submit Q&A responses

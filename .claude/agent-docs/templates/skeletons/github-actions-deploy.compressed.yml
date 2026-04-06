@@ -2,15 +2,11 @@
 
 # GitHub Actions — Deployment Workflow
 
-Conditional deployment based on repository archetype: Library (publish JAR to GitHub Packages), Pipeline (Docker → Artifact Registry → Cloud Run), Config (sync configs to GCS).
+Conditional deployment based on repository archetype: Library repos publish JAR to GitHub Packages; Pipeline repos Docker build → Artifact Registry → Cloud Run Job; Config repos sync prompt configs to GCS.
 
-**Prerequisites:** Workload Identity Federation configured, GitHub Environments (dev, staging, production with protection rules), Artifact Registry repository created.
+**Replace all PLACEHOLDER values before use.**
 
-Replace all PLACEHOLDER values before use.
-
----
-
-## Trigger
+**Prerequisites:** Workload Identity Federation configured; GitHub Environments (dev, staging, production) with protection rules; Artifact Registry repository in each GCP project.
 
 ```yaml
 name: Deploy
@@ -23,15 +19,7 @@ on:
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
-```
 
----
-
-## Job: detect-archetype
-
-Determines repo type via file presence: Dockerfile → pipeline, prompt-config/ → config, else → library.
-
-```yaml
 jobs:
   detect-archetype:
     runs-on: ubuntu-latest
@@ -48,17 +36,9 @@ jobs:
           else
             echo "archetype=library" >> $GITHUB_OUTPUT
           fi
-```
 
----
-
-## Job: publish-library
-
-**When to use:** Library repos on version tags (v*).
-
-Publishes JAR to GitHub Packages via sbt.
-
-```yaml
+  # Library → publish to GitHub Packages (Maven)
+  # Triggers on version tags (v*) only.
   publish-library:
     needs: detect-archetype
     if: needs.detect-archetype.outputs.archetype == 'library' && startsWith(github.ref, 'refs/tags/v')
@@ -78,17 +58,9 @@ Publishes JAR to GitHub Packages via sbt.
         run: sbt publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
 
----
-
-## Job: deploy-pipeline-dev
-
-**When to use:** Pipeline repos, every merge to main → dev environment (auto).
-
-Authenticates via Workload Identity Federation, builds Docker image, pushes to Artifact Registry, updates Cloud Run Job.
-
-```yaml
+  # Pipeline → Docker build + push + Cloud Run Job deploy
+  # Deploys to dev on every merge to main; staging and prod use GitHub Environment protection rules.
   deploy-pipeline-dev:
     needs: detect-archetype
     if: needs.detect-archetype.outputs.archetype == 'pipeline' && github.ref == 'refs/heads/main'
@@ -117,17 +89,8 @@ Authenticates via Workload Identity Federation, builds Docker image, pushes to A
           gcloud run jobs update PLACEHOLDER_JOB_NAME \
             --image=us-central1-docker.pkg.dev/repcheck-dev/repcheck-images/PLACEHOLDER_IMAGE:${{ github.sha }} \
             --region=us-central1
-```
 
----
-
-## Job: e2e-tests-dev
-
-**When to use:** After dev deployment. Validates via E2E test suite before staging promotion.
-
-Runs sbt E2E tests tagged `com.repcheck.tags.E2ETest` against dev environment.
-
-```yaml
+  # E2E tests against dev (runs after dev deployment)
   e2e-tests-dev:
     needs: deploy-pipeline-dev
     runs-on: ubuntu-latest
@@ -152,17 +115,8 @@ Runs sbt E2E tests tagged `com.repcheck.tags.E2ETest` against dev environment.
         env:
           GOOGLE_CLOUD_PROJECT: repcheck-dev
           TEST_NAMESPACE_PREFIX: ci-${{ github.run_id }}-
-```
 
----
-
-## Job: deploy-pipeline-staging
-
-**When to use:** After E2E tests pass. Auto-promotes to staging (no approval gate).
-
-Re-tags image from dev (no rebuild), updates Cloud Run Job in staging project.
-
-```yaml
+  # Deploy to staging (auto, if e2e tests pass)
   deploy-pipeline-staging:
     needs: e2e-tests-dev
     runs-on: ubuntu-latest
@@ -189,17 +143,8 @@ Re-tags image from dev (no rebuild), updates Cloud Run Job in staging project.
           gcloud run jobs update PLACEHOLDER_JOB_NAME \
             --image=us-central1-docker.pkg.dev/repcheck-staging/repcheck-images/PLACEHOLDER_IMAGE:${{ github.sha }} \
             --region=us-central1
-```
 
----
-
-## Job: deploy-pipeline-prod
-
-**When to use:** After staging deployment succeeds. Requires manual approval via GitHub Environment protection rule.
-
-Re-tags image from staging, updates Cloud Run Job in prod project.
-
-```yaml
+  # Deploy to production (manual approval gate)
   deploy-pipeline-prod:
     needs: deploy-pipeline-staging
     runs-on: ubuntu-latest
@@ -226,17 +171,8 @@ Re-tags image from staging, updates Cloud Run Job in prod project.
           gcloud run jobs update PLACEHOLDER_JOB_NAME \
             --image=us-central1-docker.pkg.dev/repcheck-prod/repcheck-images/PLACEHOLDER_IMAGE:${{ github.sha }} \
             --region=us-central1
-```
 
----
-
-## Job: deploy-config
-
-**When to use:** Config repos on every merge to main.
-
-Syncs prompt-config/ to GCS using gsutil rsync (propagates deletions).
-
-```yaml
+  # Config → upload prompt configs to GCS
   deploy-config:
     needs: detect-archetype
     if: needs.detect-archetype.outputs.archetype == 'config' && github.ref == 'refs/heads/main'

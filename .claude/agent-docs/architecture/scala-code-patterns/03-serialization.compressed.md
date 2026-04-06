@@ -4,7 +4,7 @@
 
 **Pattern**: Semi-automatic derivation as default. Custom encoders/decoders only when field mapping differs from case class.
 
-### Default: Semi-Auto Derivation
+## Default: Semi-Auto Derivation
 
 ```scala
 import io.circe.{Decoder, Encoder}
@@ -18,7 +18,7 @@ object TextVersion {
 }
 ```
 
-### Custom Decoders (API field name mapping)
+## Custom Decoders (API field names differ)
 
 ```scala
 object LegislativeBillApiDTO {
@@ -39,7 +39,7 @@ object LegislativeBillApiDTO {
 }
 ```
 
-### Enum Serialization
+## Enum Serialization
 
 ```scala
 enum BillType(val value: String) {
@@ -61,18 +61,18 @@ object BillType {
 }
 ```
 
-### http4s EntityDecoder Integration
+## http4s EntityDecoder Integration
 
 ```scala
+// Enable http4s to decode HTTP responses directly into typed objects
 object LegislativeBillsApiDTO {
   implicit val circeDecoder: Decoder[LegislativeBillsApiDTO] = deriveDecoder
-  // Enable http4s to decode HTTP responses directly into typed objects
   implicit def entityDecoder[F[_]: Concurrent]: EntityDecoder[F, LegislativeBillsApiDTO] =
     org.http4s.circe.jsonOf[F, LegislativeBillsApiDTO]
 }
 ```
 
-### Semigroup for Batch Combining
+## Semigroup for Batch Combining
 
 ```scala
 import cats.Semigroup
@@ -82,7 +82,7 @@ implicit val semigroup: Semigroup[LegislativeBillsApiDTO] =
   (x, y) => LegislativeBillsApiDTO(x.bills ++ y.bills)
 ```
 
-### Shared Serializers
+## Shared Serializers
 
 Defined once in `repcheck-shared-models`:
 
@@ -104,10 +104,10 @@ object Serializers {
 }
 ```
 
-### Rules
+## Rules
 
 - Always use semi-auto derivation (`deriveEncoder`/`deriveDecoder`) — never full-auto
 - Custom decoders only when field names differ or need transformation
 - Enum codecs use `emapTry` with enum's `fromString` method
-- Shared serializers for `ZonedDateTime`, `Instant`, etc. in `repcheck-shared-models`
+- Shared serializers for `ZonedDateTime`, `Instant` live in `repcheck-shared-models`
 - DTOs define codecs in companion object

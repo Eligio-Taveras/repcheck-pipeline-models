@@ -2,9 +2,9 @@
 
 # 8. AlloyDB Access (Doobie)
 
-**Pattern**: Doobie with `ConnectionIO` for queries, `Transactor[F]` for execution. AlloyDB is the unified database for RepCheck data — legislative, analysis, scores, user data. Supports pgvector for embeddings.
+**Pattern**: Doobie with `ConnectionIO` for queries, `Transactor[F]` for execution. AlloyDB is the unified database for all RepCheck data. Supports pgvector for embeddings.
 
-### Table Constants (in `repcheck-pipeline-models`)
+## Table Constants (in `repcheck-pipeline-models`)
 
 ```scala
 object Tables {
@@ -23,7 +23,7 @@ object Tables {
 }
 ```
 
-### Transactor Setup
+## Transactor Setup
 
 ```scala
 import doobie.*
@@ -43,14 +43,14 @@ object AlloyDbTransactor {
 }
 ```
 
-### Query Pattern
+## Query Pattern
 
 ```scala
 import doobie.*
 import doobie.implicits.*
 import doobie.implicits.javasql.*
 
-// Read: auto-derived Read[T] from case class field order
+// Auto-derived Read[T] from case class field order — SELECT column order must match
 def findBill(billId: String): ConnectionIO[Option[LegislativeBillDO]] =
   sql"""
     SELECT bill_id, congress, bill_type, title, origin_chamber,
@@ -59,7 +59,7 @@ def findBill(billId: String): ConnectionIO[Option[LegislativeBillDO]] =
     WHERE bill_id = $billId
   """.query[LegislativeBillDO].option
 
-// Write: ON CONFLICT DO UPDATE for idempotent upserts
+// Idempotent upsert with ON CONFLICT DO UPDATE
 def upsertBill(bill: LegislativeBillDO): ConnectionIO[Int] =
   sql"""
     INSERT INTO bills (bill_id, congress, bill_type, title, origin_chamber,
@@ -73,17 +73,17 @@ def upsertBill(bill: LegislativeBillDO): ConnectionIO[Int] =
       update_date        = EXCLUDED.update_date
   """.update.run
 
-// Execute against transactor
+// Execute ConnectionIO against transactor
 def saveBill[F[_]: Async](bill: LegislativeBillDO, xa: Transactor[F]): F[Unit] =
   upsertBill(bill).transact(xa).void
 ```
 
-### pgvector Pattern (for embeddings)
+## pgvector Pattern (Embeddings)
 
 ```scala
 import org.postgresql.util.PGobject
 
-// Store a vector embedding
+// Store vector embedding
 def upsertEmbedding(billId: String, embedding: Array[Float]): ConnectionIO[Int] = {
   val vectorStr = embedding.mkString("[", ",", "]")
   sql"""
@@ -93,7 +93,7 @@ def upsertEmbedding(billId: String, embedding: Array[Float]): ConnectionIO[Int] 
   """.update.run
 }
 
-// Cosine similarity search — <=> is cosine distance
+// Cosine similarity search (<=> is cosine distance)
 def findSimilarBills(queryEmbedding: Array[Float], limit: Int): ConnectionIO[List[String]] = {
   val vectorStr = queryEmbedding.mkString("[", ",", "]")
   sql"""
@@ -104,11 +104,12 @@ def findSimilarBills(queryEmbedding: Array[Float], limit: Int): ConnectionIO[Lis
 }
 ```
 
-### Rules
+## Rules
+
 - Reference table names via `Tables` constants only — never hardcoded strings
-- Use `ConnectionIO` for composable queries; `.transact(xa)` to execute
-- `HikariTransactor` for connection pooling via `Resource[F, HikariTransactor[F]]`
-- Doobie auto-derives `Read[T]` and `Write[T]` from case class field order — match column order in SELECT
+- Use `ConnectionIO` for composable queries; execute with `.transact(xa)`
+- Use `HikariTransactor` for connection pooling via `Resource[F, HikariTransactor[F]]`
+- Doobie auto-derives `Read[T]`/`Write[T]` from case class field order — SELECT column order must match
 - All upserts use `ON CONFLICT DO UPDATE` — never plain INSERT for legislative data
 - pgvector extension must be enabled: `CREATE EXTENSION IF NOT EXISTS vector`
-- AlloyDB uses standard PostgreSQL JDBC driver — no special socket factory needed
+- AlloyDB uses standard PostgreSQL JDBC driver — no socket factory required

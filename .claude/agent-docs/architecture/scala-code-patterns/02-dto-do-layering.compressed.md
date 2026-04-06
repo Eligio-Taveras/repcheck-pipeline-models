@@ -19,7 +19,7 @@ Pub/Sub message    →  EventDTO → (used directly, lives in pipeline-models)
 
 ### Conversion Methods
 
-DTOs convert **to** DOs via `.toDO()` on the DTO. DOs convert **to** DTOs via `fromDO()` companion on the DTO.
+DTOs convert **to** DOs via `.toDO()` method on the DTO. DOs convert **to** DTOs via companion `fromDO()` on the DTO.
 
 ```scala
 // API DTO — matches Congress.gov JSON structure exactly
@@ -108,9 +108,9 @@ case class LegislativeBillDO(
 ```
 
 ### Rules
-- DTOs contain only primitives and other DTOs — no domain enums or business logic
-- DOs use domain-typed fields (enums, value classes, `ZonedDateTime`, etc.)
-- DTOs and DOs live in service repo's `models/` sub-project, published as library
-- Never pass DTOs across module boundaries — always convert to DO first
+- **DTOs** contain only primitive types and other DTOs — no domain enums, no business logic
+- **DOs** use domain-typed fields (enums, value classes, `ZonedDateTime`, etc.)
+- DTOs and DOs for a service live in that repo's `models/` sub-project, published as a library
+- **Never** pass DTOs across module boundaries — always convert to DO first
 - API DTOs have Circe decoders; DB DTOs have Doobie auto-derived `Read`/`Write` instances
-- DOs have no serialization — pure domain types only
+- DOs have no serialization — they are pure domain types

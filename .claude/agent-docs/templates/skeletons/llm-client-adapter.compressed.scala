@@ -3,7 +3,7 @@
 ```markdown
 # RepCheck LLM Client Adapter
 
-Vendor-neutral LLM abstraction. Build prompts in neutral format, then pluggable adapters convert to vendor-specific DTOs (Claude, GPT, etc.).
+Vendor-neutral LLM abstraction. Build prompts in neutral format, pluggable adapters convert to vendor-specific DTOs.
 
 ## Vendor-Neutral Models
 
@@ -68,9 +68,6 @@ object LlmResponse {
 }
 ```
 
-**LlmRequest**: Built by prompt engine, consumed by adapters (system prompt + messages + parameters).
-**LlmResponse**: Includes provider & model fields for multi-provider comparison.
-
 ## Adapter Trait
 
 ```scala
@@ -80,7 +77,7 @@ trait LlmAdapter[F[_]] {
 }
 ```
 
-Each LLM provider implements this trait. Converts LlmRequest → vendor DTO → SDK call → LlmResponse.
+Each provider implements `LlmAdapter`: converts `LlmRequest` → vendor DTO → SDK call → `LlmResponse`.
 
 ## Claude Adapter
 
@@ -107,11 +104,36 @@ object ClaudeAdapter {
 
       def submit(request: LlmRequest): F[LlmResponse] = {
         val operation: F[LlmResponse] = Async[F].blocking {
-          // Convert LlmRequest → Anthropic SDK MessageCreateParams
-          // val client = AnthropicClient.builder().apiKey(config.apiKey).build()
-          // val message = MessageCreateParams.builder().model(config.model).system(request.systemPrompt).messages(...).maxTokens(...).temperature(...).build()
+          // TODO: Convert LlmRequest → Anthropic SDK MessageCreateParams
+          //
+          // val client = AnthropicClient.builder()
+          //   .apiKey(config.apiKey)
+          //   .build()
+          //
+          // val message = MessageCreateParams.builder()
+          //   .model(config.model)
+          //   .system(request.systemPrompt)
+          //   .messages(request.messages.map { msg =>
+          //     MessageParam.builder()
+          //       .role(msg.role match { case Role.User => "user"; case _ => "assistant" })
+          //       .content(msg.content)
+          //       .build()
+          //   }.asJava)
+          //   .maxTokens(request.parameters.maxTokens)
+          //   .temperature(request.parameters.temperature)
+          //   .build()
+          //
           // val response = client.messages().create(message)
-          // Convert to LlmResponse with provider="claude", content from response, model, tokenUsage
+          //
+          // LlmResponse(
+          //   provider = "claude",
+          //   content = response.content().get(0).text(),
+          //   model = config.model,
+          //   tokensUsed = TokenUsage(
+          //     inputTokens = response.usage().inputTokens(),
+          //     outputTokens = response.usage().outputTokens()
+          //   )
+          // )
           ???
         }
 
@@ -126,8 +148,6 @@ object ClaudeAdapter {
   import scala.concurrent.duration.*
 }
 ```
-
-**When To Use**: Claude requests. Wraps Anthropic Java SDK behind adapter with retry logic per config.
 
 ## GPT Adapter
 
@@ -154,12 +174,29 @@ object GptAdapter {
 
       def submit(request: LlmRequest): F[LlmResponse] = {
         val operation: F[LlmResponse] = Async[F].blocking {
-          // Convert LlmRequest → OpenAI ChatCompletionRequest
+          // TODO: Convert LlmRequest → OpenAI ChatCompletionRequest
+          //
           // val client = OpenAI.builder().apiKey(config.apiKey).build()
-          // val messages = ChatMessage.system(request.systemPrompt) :: request.messages.map(...)
-          // val params = ChatCompletionCreateParams.builder().model(config.model).messages(messages).maxTokens(...).temperature(...).build()
+          //
+          // val messages = (
+          //   ChatMessage.system(request.systemPrompt) ::
+          //   request.messages.map { msg =>
+          //     msg.role match {
+          //       case Role.User      => ChatMessage.user(msg.content)
+          //       case Role.Assistant => ChatMessage.assistant(msg.content)
+          //       case Role.System    => ChatMessage.system(msg.content)
+          //     }
+          //   }
+          // ).asJava
+          //
+          // val params = ChatCompletionCreateParams.builder()
+          //   .model(config.model)
+          //   .messages(messages)
+          //   .maxTokens(request.parameters.maxTokens)
+          //   .temperature(request.parameters.temperature)
+          //   .build()
+          //
           // val response = client.chat().completions().create(params)
-          // Convert to LlmResponse with provider="gpt", content from response, model, tokenUsage
           ???
         }
 
@@ -174,8 +211,6 @@ object GptAdapter {
   import scala.concurrent.duration.*
 }
 ```
-
-**When To Use**: GPT requests. Wraps OpenAI SDK behind adapter with retry logic per config.
 
 ## LLM Dispatcher
 
@@ -194,14 +229,14 @@ object LlmDispatcher {
 }
 ```
 
-**When To Use**: Multi-provider analysis. Submits same LlmRequest to all configured adapters concurrently, returns list of LlmResponse (one per provider).
+Submits same `LlmRequest` to all configured adapters concurrently. Returns list of `LlmResponse` (one per provider) for multi-provider comparison.
 
 ## Architecture
 
-- LlmRequest/LlmResponse live in llm-client/models (vendor-neutral)
-- LlmAdapter[F] trait per provider with submit method
-- Each adapter wraps vendor SDK (Anthropic Java SDK, OpenAI SDK) behind abstraction
-- RetryWrapper per provider with configurable backoff & timeout
-- LlmDispatcher fans out concurrently to all configured adapters
-- LlmResponse includes provider + model fields for downstream distinction
+- **LlmRequest/LlmResponse**: vendor-neutral, live in `llm-client/models/`
+- **LlmAdapter[F]**: trait per provider with `submit` method
+- **Per-provider retry**: wrapped via `RetryWrapper` with configurable backoff & timeout
+- **Concurrent dispatch**: `LlmDispatcher` fans out via `parTraverse`
+- **Direct SDK integration**: Anthropic Java SDK, OpenAI SDK behind adapters
+- **Provider tracking**: response includes `provider` + `model` fields for attribution
 ```

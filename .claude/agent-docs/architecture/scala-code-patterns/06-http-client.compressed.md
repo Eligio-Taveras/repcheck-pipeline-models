@@ -37,6 +37,7 @@ val requestUri = baseUri
 ```
 
 ## Rules
+
 - Always use `Resource` for client lifecycle — never construct clients manually
 - Use `.use { client => ... }` to ensure cleanup
 - Use `withOptionalQueryParam` for optional parameters — no null checks

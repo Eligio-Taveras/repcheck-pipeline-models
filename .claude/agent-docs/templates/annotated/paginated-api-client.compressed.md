@@ -2,10 +2,10 @@
 
 # Pattern: Paginated API Client
 
-## When To Use This Pattern
-- Any new Congress.gov API endpoint (votes, members, amendments)
-- Any external API that returns paginated results
-- When you need memory-efficient streaming of large result sets
+## When To Use
+- Any Congress.gov API endpoint (votes, members, amendments)
+- Any external API returning paginated results
+- Memory-efficient streaming of large result sets
 
 ## Source Files
 - `gov-apis/src/main/scala/apiBase/PagingApiBase.scala` — generic trait
@@ -31,29 +31,27 @@ import fs2.io.net.Network
 import apiBase.PagingApiBase.SortOrder
 import common.Constants
 
-// Unique, flat exception for protocol validation failures
+// Unique exception for protocol validation failures
 case class InvalidProtocol(protocol: String)
     extends Exception(s"Invalid protocol: $protocol")
 
-// Marker trait: DTO reports how many items it contains; tells pagination loop when to stop
+// Contract for DTOs that report page size
 trait PagedObject {
   def lengthRetrieved: Int
 }
 
-// Core pattern: tagless-final trait parameterized over effect type F[_] and response DTO type T
-// Type constraints: F must have Async & Network; T must extend PagedObject & have Semigroup
+// Tagless-final trait: F[_] is effect type; T is response DTO type
+// Requires: F has Async & Network; T extends PagedObject with Semigroup
 trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
+  protected def protocol: String
+  protected def host: String
+  protected def apiKey: String
+  protected def path: String
+  protected def pageSize: Int
+  implicit protected def decoder: EntityDecoder[F, T]
+  protected def emberClient: Resource[F, Client[F]]
 
-  // Protected abstract members: define API contract every implementation must provide
-  protected def protocol: String           // "https"
-  protected def host: String               // "api.congress.gov"
-  protected def apiKey: String             // API authentication key
-  protected def path: String               // "/v3/bill"
-  protected def pageSize: Int              // Items per page
-  implicit protected def decoder: EntityDecoder[F, T]  // Parse HTTP response → T
-  protected def emberClient: Resource[F, Client[F]]    // HTTP client with lifecycle management
-
-  // Public entry point: fetches ALL pages and combines them; uses sensible defaults
+  // Public entry point: fetches all pages, combines with defaults
   def defaultCall(
       fromDateTime: Option[ZonedDateTime],
       toDateTime: Option[ZonedDateTime]
@@ -65,7 +63,7 @@ trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
     )
   }
 
-  // Public entry point: fetches ONE page as FS2 Stream; used for page-by-page streaming
+  // Public entry point: fetches one page as FS2 Stream
   def streamBatch(
       fromDateTime: Option[ZonedDateTime],
       toDateTime: Option[ZonedDateTime],
@@ -77,9 +75,8 @@ trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
     )
   }
 
-  // Stack-safe pagination using Async[F].tailRecM: avoids stack overflow
-  // Accumulator: (offset, Option[T]) — current position and accumulated results
-  // Semigroup[T] combines pages; stops when page.lengthRetrieved < pageSize
+  // Stack-safe pagination via Async[F].tailRecM
+  // Accumulates pages with Semigroup, stops when page.lengthRetrieved < pageSize
   private def getAll(
       fromDateTime: Option[ZonedDateTime],
       toDateTime: Option[ZonedDateTime],
@@ -106,7 +103,7 @@ trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
     }
   }
 
-  // Builds full URL with query parameters; makes HTTP call; Resource[F, Client[F]] ensures proper lifecycle
+  // Build full URL with query parameters and make HTTP call
   private def getObjects(
       offset: Option[Int],
       limit: Option[Int],
@@ -115,7 +112,6 @@ trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
       sort: Option[SortOrder]
   ): F[T] = {
     emberClient.use[T] { client =>
-      // Protocol validation uses Async[F].raiseError for fail-fast behavior
       val schemeF: F[Scheme] = Scheme.fromString(protocol).fold(
         _ => Async[F].raiseError[Scheme](InvalidProtocol(protocol)),
         _.pure[F]
@@ -139,14 +135,12 @@ trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
           uriWithToDateTime.withQueryParam("sort", sortO.value)
         }
 
-        // client.expect[T] makes HTTP call and decodes response using implicit EntityDecoder[F, T]
         client.expect[T](uriWithSort)(decoder)
       }
     }
   }
 }
 
-// Companion object with supporting enum
 object PagingApiBase {
   enum SortOrder(val value: String) {
     case UpdateDateAsc extends SortOrder("updateDate+asc")
@@ -179,8 +173,7 @@ import fs2.io.net.Network
 import apiBase.PagingApiBase
 import congress.gov.DTOs.LegislativeBillsDTO
 
-// Minimal concrete implementation: all pagination logic inherited from PagingApiBase
-// Provides only endpoint-specific values
+// Concrete implementation: provides endpoint-specific values, inherits pagination logic
 class LegislativeBillsApi[F[_]: Async: Network](
     val protocol: String = "https",
     val host: String = "api.congress.gov",
@@ -195,7 +188,6 @@ class LegislativeBillsApi[F[_]: Async: Network](
     LegislativeBillsDTO.entityDecoder
 }
 
-// Factory method pattern: LegislativeBillsApi[IO](apiKey, pageSize)
 object LegislativeBillsApi {
   def apply[F[_]: Async: Network](
       apiKey: String,
@@ -211,9 +203,9 @@ object LegislativeBillsApi {
 
 1. Define response DTO extending `PagedObject` with `Semigroup` instance
 2. Create class extending `PagingApiBase[F, YourDTO]`
-3. Provide 7 abstract members (protocol, host, apiKey, path, pageSize, decoder, emberClient)
+3. Provide 7 abstract members: protocol, host, apiKey, path, pageSize, decoder, emberClient
 4. Add companion object factory method
-5. Pagination, URL building, HTTP handling all inherited
+5. Pagination, URL building, HTTP handling inherited
 
 Example for Votes API:
 ```scala

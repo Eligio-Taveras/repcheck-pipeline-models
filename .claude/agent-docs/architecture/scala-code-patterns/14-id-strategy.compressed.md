@@ -1,6 +1,6 @@
 <!-- GENERATED FILE — DO NOT EDIT. Source: docs/architecture/scala-code-patterns/14-id-strategy.md -->
 
-# 14. ID Strategy
+# ID Strategy
 
 **Pattern**: Natural keys for legislative data (Congress.gov provides stable identifiers). Generated UUIDs for RepCheck-specific entities.
 
@@ -24,6 +24,7 @@
 | Processing Result | `{runId}-{entityId}` | Composite natural key |
 
 ## Rules
+
 - **Never** generate UUIDs for legislative data — always use Congress.gov's natural identifiers
 - Bill IDs are composed as `{type}-{number}-{congress}` — lowercase type
 - Analysis IDs include the provider name to support multi-LLM analysis of the same bill

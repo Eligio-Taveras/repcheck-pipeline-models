@@ -1,32 +1,30 @@
 <!-- GENERATED FILE — DO NOT EDIT. Source: docs/templates/annotated/congress-entity-api.md -->
 
-# Congress.gov Entity API Client
+# Pattern: Congress.gov Entity API Client
 
-## When To Use
-- Implementing new Congress.gov entity API clients (members, votes, amendments, etc.)
-- Adding entity DTOs/DOs to data-ingestion repos
-- Implementing new ingestion pipeline steps
+## When To Use This Pattern
+- Implementing any new Congress.gov entity API client (members, votes, amendments, etc.)
+- Adding entity DTOs/DOs to any data-ingestion repo
+- Any agent implementing a new ingestion pipeline step
 
 ## Related Patterns
-- `paginated-api-client.md` — generic PagingApiBase trait
-- `dto-do-layering.md` — 3-layer transformation approach
-- `enum-with-parsing.md` — entity type enum pattern
+- `paginated-api-client.md` — the generic PagingApiBase trait
+- `dto-do-layering.md` — explains the 3-layer transformation approach
+- `enum-with-parsing.md` — explains the entity type enum pattern
 - `congress-entity-api.scala` — skeleton with `???` placeholders
-- `gov-apis/src/main/scala/congress/gov/apis/LegislativeBillsApi.scala` — reference implementation
+- `gov-apis/src/main/scala/congress/gov/apis/LegislativeBillsApi.scala` — gold-standard reference
 - `docs/reference/congress-gov-api.yaml` — full Congress.gov OpenAPI spec
 
 ---
 
 ## Congress.gov v3 Entity Endpoint
 
-Consult `docs/reference/congress-gov-api.yaml` for exact field names and response shape.
+Consult `docs/reference/congress-gov-api.yaml` for endpoint path and response shape.
 
 **URL pattern:**
 ```
 GET https://api.congress.gov/v3/{entity-path}
-    ?api_key=YOUR_KEY&offset=0&limit=250
-    &fromDateTime=2024-01-01T00:00:00Z&toDateTime=2024-12-31T23:59:59Z
-    &sort=updateDate+desc
+    ?api_key=YOUR_KEY&offset=0&limit=250&sort=updateDate+desc
 ```
 
 **Worked example — amendments (`/v3/amendment`):**
@@ -64,14 +62,11 @@ GET https://api.congress.gov/v3/{entity-path}
 ```
 
 **Key field notes (amendments):**
-- `number` — entity identifier within congress (string, not int)
+- `number` — entity identifier within congress (string)
 - `type` — `"SAMDT"` (Senate), `"HAMDT"` (House), `"SUAMDT"` (Senate unprinted)
-- `proposedDate` — nullable; not all amendments have one
-- `description` / `purpose` — nullable; may be absent for older records
+- `proposedDate`, `description`, `purpose` — nullable
 - `amendedBill` — lightweight cross-reference, NOT full bill object
 - Natural key: `congress` + `type` + `number`
-
-**Pagination:** identical across all entities — `offset`/`limit`, stop when `lengthRetrieved < pageSize`.
 
 ---
 
@@ -106,7 +101,7 @@ object AmendmentType {
 
 ## GovSite Decoder
 
-Manual `HCursor` decoder mapping Congress.gov JSON field names to internal field names.
+Maps raw Congress.gov JSON field names to internal field names using manual `HCursor` decoder.
 
 ```scala
 // File: gov-apis/src/main/scala/congress/gov/DTOs/GovSite/AmendmentDTOGovSite.scala
@@ -117,7 +112,6 @@ import io.circe.Decoder
 import congress.gov.DTOs.{AmendmentDTO, AmendedBillRef, LatestAction}
 
 object AmendmentDTOGovSite {
-
   import common.Serializers.*
 
   implicit val amendedBillRefDecoder: Decoder[AmendedBillRef] =
@@ -155,6 +149,8 @@ object AmendmentDTOGovSite {
 ---
 
 ## Nested Reference Case Class
+
+Only needed for entities that reference other entities.
 
 ```scala
 // File: gov-apis/src/main/scala/congress/gov/DTOs/AmendedBillRef.scala
@@ -419,10 +415,10 @@ class AmendmentSpec extends AnyFlatSpec with Matchers {
 
 | Decision | Rationale |
 |---|---|
-| Nullable API fields use `Option[T]` | Prevents decode failures on older records that omit the field |
+| Nullable API fields use `Option[T]` | Prevents decode failures on older records omitting the field |
 | Nested cross-references are lightweight ref objects | Avoids duplication; related entities fetched independently |
 | Natural key is `congress-type-id` | Mirrors Congress.gov URL structure; stable across updates |
 | Flat `UnknownXxxType` exception | Project convention: one unique exception per failure case |
 | Entity type stays `String` in DTO | Validation deferred to `toDO` — GovSite decoding should not fail on type strings |
-| `Tables.xxx` constant for table name | Never hardcode table name strings — use constants from pipeline-models |
-| `toDO` returns `Either[String, DO]` | Pipeline fail-and-continue records the Left as a per-item failure without halting |
+| `Tables.xxx` constant for table name | Never hardcode table name strings |
+| `toDO` returns `Either[String, DO]` | Pipeline fail-and-continue records the Left as per-item failure without halting |

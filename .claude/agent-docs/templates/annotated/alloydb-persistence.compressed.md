@@ -2,19 +2,17 @@
 
 # Pattern: AlloyDB Persistence
 
-AlloyDB is PostgreSQL-compatible; standard Doobie HikariCP transactor works without modification. pgvector extension enables embedding storage and cosine similarity queries.
+AlloyDB is PostgreSQL-compatible; Doobie HikariCP transactor works without modification. pgvector extension enables embedding storage and cosine similarity queries.
 
-## When To Use This Pattern
+## When To Use
 - Any AlloyDB read/write operation
-- Setting up Doobie transactor at app startup
-- Storing/querying vector embeddings with pgvector
-- Replacing Firestore persistence calls
+- Setting up the Doobie transactor (once at app startup)
+- Storing or querying vector embeddings with pgvector
+- Replacing any former Firestore persistence call
 
 ## Source Files
 - `docs/templates/skeletons/alloydb-repository.scala` — AlloyDB-specific patterns (pgvector)
 - `docs/templates/skeletons/doobie-repository.scala` — General Doobie repository pattern
-
----
 
 ## Transactor Setup
 
@@ -30,9 +28,8 @@ import doobie.util.transactor.Transactor
 
 import scala.concurrent.ExecutionContext
 
-// Resource[F, Transactor[F]] is canonical Doobie pattern. Resource ensures connection pool
-// closes at shutdown. HikariCP recommended for production AlloyDB.
-// AlloyDB URL: jdbc:postgresql://<INSTANCE_IP>:5432/<DB_NAME>
+// Resource[F, Transactor[F]] is canonical Doobie pattern; ensures connection pool closes on shutdown.
+// AlloyDB connection URL: jdbc:postgresql://<INSTANCE_IP>:5432/<DB_NAME>
 // AlloyDB is wire-compatible with PostgreSQL — no special JDBC driver needed.
 object AlloyDbTransactor {
   def make[F[_]: Async](
@@ -54,14 +51,13 @@ object AlloyDbTransactor {
 ## Basic Repository Pattern
 
 ```scala
-// All Doobie queries run in ConnectionIO and lift into F via Transactor.
+// All Doobie queries run in ConnectionIO and are lifted into F via the Transactor.
 // Auto-derived Read/Write instances eliminate boilerplate for case class mapping.
 
 case class BillDO(billId: String, congress: Int, title: String, updateDate: String)
 
 object BillRepository {
-  // doobie.Meta derivation handles basic types automatically.
-  // For enums, provide explicit Meta[MyEnum] instance using Meta[String].imap.
+  // doobie.Meta derivation handles basic types automatically; provide explicit Meta[MyEnum] for enums.
 
   def upsert[F[_]: Async](bill: BillDO)(xa: Transactor[F]): F[Unit] =
     sql"""
@@ -82,18 +78,17 @@ object BillRepository {
 
 ## pgvector — Embedding Storage and Similarity Search
 
-```scala
-// pgvector adds native 'vector' column type to PostgreSQL/AlloyDB.
-// Store embeddings as TEXT (JSON array) and cast to vector in SQL.
-// Requires: CREATE EXTENSION IF NOT EXISTS vector;
-//           CREATE INDEX ON bill_analyses USING ivfflat (embedding vector_cosine_ops)
+pgvector adds native 'vector' column type to PostgreSQL/AlloyDB. Store embeddings as TEXT (JSON array) and cast to vector in SQL.
+Requires: `CREATE EXTENSION IF NOT EXISTS vector;` and `CREATE INDEX ON bill_analyses USING ivfflat (embedding vector_cosine_ops)`
 
+```scala
 object BillAnalysisRepository {
+  // Store analysis result with embedding (1536-dim for text-embedding-3-small, 768-dim for Gemini)
   def insertWithEmbedding[F[_]: Async](
     analysisId: String,
     billId: String,
     pass1: io.circe.Json,
-    embedding: Vector[Float]  // 1536-dim for text-embedding-3-small, 768-dim for Gemini
+    embedding: Vector[Float]
   )(xa: Transactor[F]): F[Unit] = {
     val embeddingStr = embedding.mkString("[", ",", "]")
     sql"""
@@ -123,13 +118,13 @@ object BillAnalysisRepository {
 
 | Rule | Rationale |
 |------|-----------|
-| Use `HikariTransactor` via `Resource[F, _]` | Connection pool lifecycle managed by Cats Effect |
-| Doobie handles blocking I/O internally | Do NOT wrap in `Async[F].blocking` — redundant |
-| Use `ON CONFLICT DO UPDATE` for upserts | AlloyDB is PostgreSQL — standard syntax |
+| Use `HikariTransactor` via `Resource[F, _]` | Connection pool lifecycle managed by Cats Effect resource |
+| Doobie handles blocking I/O internally | Do NOT wrap Doobie calls in `Async[F].blocking` — redundant |
+| Use `ON CONFLICT DO UPDATE` for upserts | AlloyDB is PostgreSQL — standard upsert syntax applies |
 | Store embeddings as `vector` column type | pgvector `<=>` operator enables efficient cosine similarity |
-| Use `transact(xa)` to lift `ConnectionIO` into `F` | Standard Doobie pattern for composition |
-| Table names from `Tables` constants in pipeline-models | Single source of truth |
-| Auto-derived `Read[T]`/`Write[T]` for case class mapping | Minimal boilerplate; explicit `Meta` for enums |
+| Use `transact(xa)` to lift `ConnectionIO` into `F` | All queries compose in ConnectionIO |
+| Table names from `Tables` constants in pipeline-models | Single source of truth across all repos |
+| Auto-derived `Read[T]`/`Write[T]` for case class mapping | Explicit `Meta` instances for enums only |
 
 ## How to Create a New AlloyDB Repository
 

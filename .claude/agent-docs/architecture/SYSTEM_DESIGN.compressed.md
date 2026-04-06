@@ -2,7 +2,7 @@
 
 # RepCheck System Design
 
-RepCheck combines Congressional data ingestion, LLM-powered bill analysis, and alignment scoring to help citizens understand legislator voting relative to personal political interests.
+RepCheck is a citizen-facing platform that helps users understand how their legislators vote relative to their personal political interests. Combines Congressional data ingestion, LLM-powered bill analysis, and alignment scoring. Each section is in its own file for targeted loading.
 
 ## Table of Contents
 
@@ -20,5 +20,3 @@ RepCheck combines Congressional data ingestion, LLM-powered bill analysis, and a
 | 10 | Deployment Architecture | [10-deployment.md](system-design/10-deployment.md) |
 | 11 | Implementation Priority | [11-implementation-priority.md](system-design/11-implementation-priority.md) |
 | — | **Acceptance Criteria** (implementation specs per component) | [acceptance-criteria/README.md](acceptance-criteria/README.md) |
-
-Each section is in its own file for targeted loading.

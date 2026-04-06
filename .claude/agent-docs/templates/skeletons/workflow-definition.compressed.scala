@@ -2,16 +2,16 @@
 
 # RepCheck Skeleton: Workflow Definition (State Machine)
 
-**Repo**: Published from each pipeline repo via GitHub Actions CI  
-**Purpose**: Defines pipeline state machines as JSON, published from GitHub to GCS on release. Orchestrator reads these to determine step execution order.
+**Repo:** Published from each pipeline repo via GitHub Actions CI  
+**Purpose:** Defines pipeline state machines as JSON, published to GCS on release. Orchestrator reads these to determine execution order.
 
 ## Key Decisions
 - Workflow definitions version-controlled in repo
 - Published to GCS via GitHub Action on merge/release
 - Semver independent from repo release version
-- Developers own workflow version bump decisions
+- Developers own version bump decision
 - All GCS objects versioned with semver in filenames
-- Orchestrator reads workflow from GCS to determine execution order
+- Orchestrator reads workflow from GCS for execution order
 
 ## WorkflowStep
 
@@ -33,13 +33,14 @@ object WorkflowStep {
 }
 ```
 
-**Fields**:
-- `stepName`: Human-readable name (e.g., "create-snapshots")
-- `targetApp`: Cloud Run Job name to execute
-- `dependencies`: Steps that must complete first
-- `resources`: CPU/memory requirements
-- `eventType`: Pub/Sub event type produced on completion
-- `config`: Step-specific configuration overrides
+| Field | Type | Default | Purpose |
+|-------|------|---------|---------|
+| stepName | String | - | Human-readable step name (e.g., "create-snapshots") |
+| targetApp | String | - | Cloud Run Job name to execute |
+| dependencies | List[String] | [] | Steps that must complete before this one |
+| resources | ResourceRequirements | {} | CPU/memory requirements |
+| eventType | Option[String] | None | Pub/Sub event type produced on completion |
+| config | Map[String, String] | {} | Step-specific configuration overrides |
 
 ## WorkflowDefinition
 
@@ -67,13 +68,14 @@ object WorkflowDefinition {
 }
 ```
 
-**Methods**:
-- `readySteps(completedSteps)`: Steps with all dependencies met, ready to run
-- `isComplete(completedSteps)`: Workflow completion check
+| Method | Purpose |
+|--------|---------|
+| readySteps(completedSteps) | Get steps with no unmet dependencies (ready to run) |
+| isComplete(completedSteps) | Check if all steps complete |
 
 ## Example Workflow: Bill Analysis Pipeline
 
-**GCS path**: `workflows/bill-analysis-pipeline-v1.0.0.json`
+GCS path: `workflows/bill-analysis-pipeline-v1.0.0.json`
 
 ```json
 {
@@ -155,7 +157,7 @@ object WorkflowLoader {
         import cats.syntax.all.*
         for {
           paths <- gcsClient.listAll(config.bucket, s"$name-")
-          // TODO: Use proper semver parsing for correct ordering
+          // TODO: Use proper semver parsing for correct ordering (currently lexicographic)
           latestPath <- paths
             .sorted
             .lastOption
@@ -174,13 +176,9 @@ object WorkflowLoader {
 }
 ```
 
-**Methods**:
-- `load(name, version)`: Load specific workflow version from GCS
-- `loadLatest(name)`: Load latest version by lexicographic sort (TODO: proper semver)
+## GitHub Actions CI Publishing
 
-## GitHub Actions Publishing
-
-**.github/workflows/publish-workflow.yml**:
+`.github/workflows/publish-workflow.yml`
 
 ```yaml
 name: Publish Workflow Definition

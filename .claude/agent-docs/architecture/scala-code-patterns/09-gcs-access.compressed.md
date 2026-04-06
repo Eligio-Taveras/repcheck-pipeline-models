@@ -1,8 +1,8 @@
 <!-- GENERATED FILE — DO NOT EDIT. Source: docs/architecture/scala-code-patterns/09-gcs-access.md -->
 
-# 9. GCS Access
+## 9. GCS Access
 
-**Pattern**: Google Cloud Storage Java SDK wrapped in `Sync[F]`. Loads prompt configuration (instruction blocks and profiles).
+**Pattern**: Google Cloud Storage Java SDK wrapped in `Sync[F]`. Used for loading prompt configuration (instruction blocks and profiles).
 
 ```scala
 import com.google.cloud.storage.{Storage, StorageOptions, BlobId}
@@ -43,8 +43,8 @@ class GcsClientImpl[F[_]: Sync] extends GcsClient[F] {
 }
 ```
 
-**Rules**:
-- Wrap GCS SDK calls in `Sync[F].blocking { ... }`
-- GCS for prompt configuration only, not general data storage
-- Cache prompt fragments at pipeline startup
+### Rules
+- GCS SDK calls wrapped in `Sync[F].blocking { ... }`
+- GCS used **only** for prompt configuration — not general data storage
+- Prompt fragments read at pipeline startup and cached for duration of run
 - Use `GcsReadFailed` error for missing objects

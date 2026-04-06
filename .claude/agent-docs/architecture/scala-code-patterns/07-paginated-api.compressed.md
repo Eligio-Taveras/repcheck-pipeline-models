@@ -28,6 +28,7 @@ trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
     case UpdateDateDesc extends SortOrder("updateDate+desc")
   }
 
+  // Stream a single batch (one page)
   def streamBatch(
     fromDateTime: Option[ZonedDateTime] = None,
     toDateTime: Option[ZonedDateTime] = None,
@@ -36,6 +37,7 @@ trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
   ): fs2.Stream[F, T] =
     fs2.Stream.eval(getObjects(Some(offset), Some(pageSize), fromDateTime, toDateTime, sortOrder))
 
+  // Fetch all pages recursively, combining via Semigroup
   def getAll(
     offset: Int = 0,
     fromDateTime: Option[ZonedDateTime] = None,
@@ -43,6 +45,7 @@ trait PagingApiBase[F[_]: Async: Network, T <: PagedObject: Semigroup] {
     sortOrder: Option[SortOrder] = Some(SortOrder.UpdateDateAsc)
   ): F[T]
 
+  // Fetch a single page
   private def getObjects(
     offset: Option[Int],
     limit: Option[Int],
@@ -75,6 +78,6 @@ class LegislativeBillsApi[F[_]: Async: Network](
 
 ### Rules
 - All Congress.gov API clients extend `PagingApiBase`
-- Type `T` must have `Semigroup` for combining pages (`|+|`)
-- Type `T` must extend `PagedObject` so pagination knows when to stop
+- Type `T` must have `Semigroup` for combining pages via `|+|`
+- Type `T` must extend `PagedObject` for pagination awareness
 - Stop recursion when `lengthRetrieved < pageSize`

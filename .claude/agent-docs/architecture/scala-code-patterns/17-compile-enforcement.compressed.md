@@ -63,27 +63,28 @@ OrganizeImports {
 }
 ```
 
-**Custom rules** (in `project/scalafix/`):
-
 | Rule | Enforces |
 |---|---|
-| `NoHardcodedTableNames` | Table refs via `Tables.*` constants only |
-| `NoDtoInPipelineCode` | Pipeline logic uses DOs only, not DTOs |
-| `NoDirectIoInLibrary` | Libraries use `F[_]`, not `IO` directly |
-| `NoUnsafeRunSync` | `unsafeRunSync` in `src/test/` only |
+| `NoHardcodedTableNames` | All AlloyDB table refs must use `Tables.*` constants |
+| `NoDtoInPipelineCode` | DTO types must not appear in pipeline business logic — only DOs |
+| `NoDirectIoInLibrary` | Library projects must not reference `cats.effect.IO` directly — only `F[_]` |
+| `NoUnsafeRunSync` | `unsafeRunSync` only allowed in `src/test/` |
 
 ## 19c. ArchUnit (Architecture Tests)
 
 Enforces dependency direction via tests.
 
 ```scala
+// In each repo's test suite
 class ArchitectureSpec extends AnyFlatSpec with Matchers {
+
   "models package" should "not depend on pipeline code" in {
     val modelsClasses = classesIn("com.repcheck.dataingestion.models")
     modelsClasses.foreach { cls =>
       cls.imports should not contain regex("com\\.repcheck\\.dataingestion\\.pipelines\\..*")
     }
   }
+
   "pipeline code" should "not use DTOs directly" in {
     val pipelineClasses = classesIn("com.repcheck.dataingestion.pipelines")
     pipelineClasses.foreach { cls =>
@@ -94,27 +95,29 @@ class ArchitectureSpec extends AnyFlatSpec with Matchers {
 }
 ```
 
-## 19d. tpolecat
+## 19d. tpolecat (Already in Use)
 
-Strict compiler flags (already configured).
+Strict compiler flags already configured in the project.
 
 ```scala
 // project/plugins.sbt
 addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat" % "0.4.4")
 
-// Enables: -Wunused:imports, -Wunused:params, -Wunused:privates
+// Key flags: -Wunused:imports, -Wunused:params, -Wunused:privates
 // -Xfatal-warnings, -Wvalue-discard
 ```
 
 ## 19e. SBT Build Guard
 
-Prevent cross-dependency violations in multi-project builds.
+Prevent accidental cross-dependency violations in multi-project builds.
 
 ```scala
+// In build.sbt — models project must NOT depend on pipeline libraries
 lazy val models = (project in file("models"))
   .settings(
     commonSettings,
     name := "repcheck-data-ingestion-models",
+    // NO http4s, NO fs2, NO firebase, NO pureconfig
     libraryDependencies ++= circe ++ Seq(
       "com.repcheck" %% "repcheck-shared-models" % Versions.sharedModels
     )
@@ -123,10 +126,10 @@ lazy val models = (project in file("models"))
 
 ## Enforcement Summary
 
-| Tool | Enforces | Failure Mode |
+| Tool | What It Enforces | Failure Mode |
 |---|---|---|
 | **WartRemover** | No nulls, vars, throws, mutable state | Compile error |
-| **Scalafix** | Import organization, DTO/DO separation, hardcoded strings | Compile/lint error |
+| **Scalafix** | Import organization, no hardcoded strings, DTO/DO separation | Compile error or CI lint |
 | **ArchUnit** | Package dependency direction, layer isolation | Test failure |
 | **tpolecat** | Unused imports/params, fatal warnings | Compile error |
 | **SBT structure** | Models project isolation | Build resolution failure |
@@ -134,6 +137,7 @@ lazy val models = (project in file("models"))
 ## CI Integration
 
 ```yaml
+# .github/workflows/ci.yml (per repo)
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -143,7 +147,10 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-      - run: sbt compile
-      - run: sbt "scalafixAll --check"
-      - run: sbt test
+      - name: Compile with WartRemover
+        run: sbt compile
+      - name: Run Scalafix checks
+        run: sbt "scalafixAll --check"
+      - name: Run tests (includes ArchUnit)
+        run: sbt test
 ```
