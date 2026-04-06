@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, "feature/**", "claude/**", "dev/**"]
+    branches: [main, "feature/**", "feat/**", "fix/**", "chore/**", "claude/**", "dev/**"]
   pull_request:
-    branches: [main, "feature/**", "claude/**", "dev/**"]
+    branches: [main]
 
 jobs:
   build:
@@ -53,6 +53,10 @@ jobs:
 
   doc-generator:
     runs-on: ubuntu-latest
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
 
     steps:
       - name: Checkout code
