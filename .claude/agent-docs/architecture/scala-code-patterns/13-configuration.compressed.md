@@ -4,7 +4,7 @@
 
 **Pattern**: PureConfig with auto-derivation via `pureconfig-generic-scala3`. Each application defines its own config case class.
 
-## Dependency
+### Dependency
 
 ```scala
 // In Dependencies.scala
@@ -14,13 +14,12 @@ val pureConfig = Seq(
 )
 ```
 
-## Config Definition
+### Config Definition
 
 ```scala
 import pureconfig.*
 import pureconfig.generic.derivation.default.*
 
-// Auto-derived — no manual ConfigReader needed
 case class BillIngestionConfig(
   apiKey: String,
   pageSize: Int,
@@ -54,7 +53,7 @@ case class ScoringConfig(
 ) derives ConfigReader
 ```
 
-## Config Loading
+### Config Loading
 
 ```scala
 import pureconfig.ConfigSource
@@ -73,12 +72,11 @@ def loadFromFile[F[_]: Sync]: F[BillIngestionConfig] =
   }
 ```
 
-## Rules
-
-- Use `derives ConfigReader` (Scala 3 auto-derivation) — no manual `ConfigReader` implementations
+### Rules
+- Use `derives ConfigReader` for auto-derivation; no manual implementations
 - Each application has its own config case class
 - Config loaded once at startup, threaded through application
-- Secrets (API keys, DB passwords) via environment variables in Cloud Run, mapped in `application.conf`:
+- Secrets from environment variables (Cloud Run), mapped via `application.conf`:
   ```hocon
   llm-api-key = ${LLM_API_KEY}
   cloud-sql-password = ${CLOUD_SQL_PASSWORD}

@@ -2,7 +2,7 @@
 
 # RepCheck Scala Code Patterns & Standards
 
-Authoritative reference for coding agents implementing RepCheck systems.
+Authoritative reference for coding agents implementing RepCheck repositories.
 
 ## Table of Contents
 
@@ -24,4 +24,4 @@ Authoritative reference for coding agents implementing RepCheck systems.
 16. [Testing](scala-code-patterns/16-testing.md)
 17. [Compile-Time Enforcement](scala-code-patterns/17-compile-enforcement.md)
 
-Each section is in its own file. Load sections as needed for context.
+Each section is in its own file for targeted loading.

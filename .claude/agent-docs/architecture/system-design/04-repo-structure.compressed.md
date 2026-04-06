@@ -86,11 +86,11 @@ graph TB
 
 ## Cross-Repo Dependency Management
 
-- **`repcheck-shared-models`** and **`repcheck-pipeline-models`** published as versioned artifacts
+- **`repcheck-shared-models`** and **`repcheck-pipeline-models`** published as versioned artifacts (GitHub Packages or GCS Maven repo)
 - `repcheck-shared-models` has no repcheck dependencies (root domain library)
 - `repcheck-pipeline-models` has no repcheck dependencies (root operational library)
 - Pipeline repos depend on both `repcheck-shared-models` (domain types) and `repcheck-pipeline-models` (operational types)
 - Non-pipeline repos depend only on `repcheck-shared-models`
 - `repcheck-llm-analysis` depends on `repcheck-prompt-engine-bills` as published artifact
-- `repcheck-scoring-engine` depends on `repcheck-llm-analysis` and `repcheck-prompt-engine-users` as published artifacts
+- `repcheck-scoring-engine` depends on `repcheck-llm-analysis` (for adapter) and `repcheck-prompt-engine-users` as published artifacts
 - Artifact publishing automated via GitHub Actions on tagged releases

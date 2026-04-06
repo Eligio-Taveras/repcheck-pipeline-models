@@ -3,9 +3,9 @@
 ```markdown
 # GCS Client
 
-**Purpose:** Wraps Google Cloud Storage Java SDK in Sync[F] for reading versioned JSON files (prompt fragments, snapshots, workflow definitions).
+**Purpose:** Wraps Google Cloud Storage Java SDK in `Sync[F]` for reading versioned JSON files (prompt fragments, snapshots, workflow definitions).
 
-**Key Decisions:** Raw GCS SDK wrapped in Sync[F] | Semver in filenames (e.g., base-system-instruction-v1.2.0.json) | Version filtering by filename scanning | Retry wrapper on all GCS operations.
+**Key Decisions:** Raw GCS Java SDK wrapped in `Sync[F]` | Semver in filenames (e.g., `base-system-instruction-v1.2.0.json`) | Version filtering by scanning filenames | Retry wrapper on all GCS operations
 
 ## GcsClient[F[_]] Trait
 
@@ -183,4 +183,8 @@ object GcsClient {
       }
 }
 ```
+
+## How to Create
+
+Call `GcsClient.make[F](config, classifier)` to obtain a `Resource[F, GcsClient[F]]`. Provide `GcsConfig` with retry parameters (defaults: 3 retries, 100ms initial backoff, 15s max backoff, 15s timeout). Pass `ErrorClassifier` to determine retry eligibility per exception type.
 ```

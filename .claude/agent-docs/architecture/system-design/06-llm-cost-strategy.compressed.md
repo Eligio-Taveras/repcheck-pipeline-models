@@ -2,11 +2,11 @@
 
 # LLM Cost Strategy — Tiered Model Selection
 
-**Design principle**: Use the cheapest model that produces acceptable quality for each task. Reserve expensive models for tasks that genuinely require stronger reasoning.
+**Design principle**: Use the cheapest model that produces acceptable quality for each task. Reserve expensive models for tasks requiring stronger reasoning.
 
 ## Why Tiered?
 
-Analyzing ~10,000 bills per congress with a single model is cost-prohibitive at higher tiers.
+Analyzing ~10,000 bills per congress with a single model is cost-prohibitive:
 
 | Approach | Est. Cost per Congress | Quality |
 |----------|----------------------|---------|
@@ -58,25 +58,25 @@ bill-analysis {
 
 ## Bill Text Decomposition and Token Management
 
-Large bills can be thousands of pages — far exceeding context windows. Decomposition uses hybrid in-process + LLM approach minimizing API costs.
+Large bills (omnibus legislation, infrastructure acts) can exceed context windows. Pipeline decomposes large texts using hybrid in-process + LLM approach:
 
 | Step | Method | Cost |
 |------|--------|------|
-| 1. Text parsing / section identification | Ollama sidecar (Llama 3.2 1B) — format-agnostic | Free (local) |
+| 1. Text parsing / section identification | Ollama sidecar (Llama 3.2 1B) — format-agnostic, handles XML/text/PDF | Free (runs locally) |
 | 2. Section embedding | DJL + ONNX Runtime (all-MiniLM-L6-v2, 384-dim) — in-process | Free |
-| 3. Semantic clustering | Smile ML (k-means/DBSCAN) — group related sections | Free |
-| 4. Concept simplification | Haiku API — summarize each group | ~$0.001/group |
+| 3. Semantic clustering | Smile ML library (k-means/DBSCAN) — group related sections | Free |
+| 4. Concept simplification | Haiku API — summarize each concept group | ~$0.001/group |
 
-**Key insight**: Steps 1–3 have zero external API cost. Ollama handles format-agnostic parsing. DJL embedding and Smile clustering replace LLM-based section classification (~$0.05–$0.10 per bill). Only external API cost is Haiku simplification.
+**Key insight**: Steps 1–3 have zero external API cost. Only step 4 uses LLM (Haiku simplification).
 
 Cost impact:
-- Most bills are short and skip decomposition
-- Large bills typically produce 5–15 concept groups → 5–15 Haiku calls (~$0.005–$0.015 per bill)
+- Most bills skip decomposition entirely
+- Large bills typically produce 5–15 concept groups → ~$0.005–$0.015 per bill
 - Simplified summaries reduce token cost in Pass 1/2/3
-- Total decomposition cost per congress (~10,000 bills): **~$20** (vs ~$500–1,000 if all steps used LLM)
+- Total decomposition cost for congress (~10,000 bills): **~$20** (vs ~$500–1,000 if all steps used LLM)
 
 ## Cost Controls
 
-- **Budget caps**: Configurable per-run spending limits; pipeline halts if projected cost exceeds cap.
-- **Pass 2/3 volume monitoring**: Alert if more than configurable % of bills escalate (may indicate prompt quality issues).
-- **Model substitution**: On provider unavailability, fall back to next tier down rather than up (cost protection over quality).
+- **Budget caps**: Configurable per-run spending limits; pipeline halts if projected cost exceeds cap
+- **Pass 2/3 volume monitoring**: Alert if more than configurable % of bills escalate to higher tiers
+- **Model substitution**: Fall back to next tier down if provider unavailable (cost protection over quality)

@@ -1,8 +1,12 @@
 <!-- GENERATED FILE — DO NOT EDIT. Source: docs/architecture/scala-code-patterns/05-streaming.md -->
 
-# Scala Code Patterns: Fail-and-Continue Streaming & FS2
+# Scala Code Patterns — Compressed
 
-## Core Types (in `repcheck-pipeline-models`)
+## 5. Fail-and-Continue Streaming
+
+**Pattern**: Process items as a stream. Each item processed independently — failures persisted immediately as `ProcessingResult` records, then released from memory. Aggregator summarizes results after stream completes.
+
+### Core Types (in `repcheck-pipeline-models`)
 
 ```scala
 import java.time.Instant
@@ -11,6 +15,7 @@ enum ResultStatus {
   case Succeeded, Failed
 }
 
+// Written to AlloyDB immediately per-item, then released from memory
 case class ProcessingResult(
   entityId: String,
   status: ResultStatus,
@@ -18,6 +23,7 @@ case class ProcessingResult(
   timestamp: Instant
 )
 
+// Written once after the entire stream completes
 case class PipelineRunSummary(
   runId: String,
   pipelineName: String,
@@ -29,7 +35,7 @@ case class PipelineRunSummary(
 )
 ```
 
-## Stream Pattern
+### Stream Pattern
 
 ```scala
 import fs2.Stream
@@ -47,6 +53,7 @@ def processStream[F[_]: Async](
         ProcessingResult(entityId, ResultStatus.Failed, Some(e.getMessage), Instant.now())
       }
       .flatMap(writeResult)
+      // After writeResult completes, dto and result are eligible for GC
   }
 
 private def processSingleItem[F[_]: Async](
@@ -58,7 +65,7 @@ private def processSingleItem[F[_]: Async](
 }
 ```
 
-## Aggregator
+### Aggregator
 
 ```scala
 def summarizeRun[F[_]: Sync](
@@ -83,19 +90,26 @@ def summarizeRun[F[_]: Sync](
   } yield summary
 ```
 
-## Fail-and-Continue Rules
+### Rules
 - Never accumulate items or results in memory across stream elements
-- Write each `ProcessingResult` to AlloyDB `processing_results` table immediately, keyed by `run_id`/`entity_id`
-- Release item and result from memory after writing
-- Aggregator reads persisted results post-stream to build summary
-- Write `PipelineRunSummary` to AlloyDB `pipeline_runs` table
-- Store only lightweight metadata in `ProcessingResult` — never full payload
+- Each `ProcessingResult` written to AlloyDB (`processing_results` table, keyed by `run_id`/`entity_id`) immediately
+- After writing, item and result released — no references retained
+- Aggregator reads persisted results after stream completion to build summary
+- `PipelineRunSummary` written to AlloyDB `pipeline_runs` table
+- `ProcessingResult` stores only lightweight metadata — never the full payload
 
-## FS2 Stream Construction
+---
+
+## 15. FS2 Streaming
+
+**Pattern**: FS2 streams for memory-efficient processing. Individual items processed and released — no accumulation.
+
+### Stream Construction
 
 ```scala
 import fs2.Stream
 
+// From a paginated API call
 def streamBills[F[_]: Async: Network](
   api: LegislativeBillsApi[F],
   fromDate: Option[ZonedDateTime]
@@ -103,6 +117,7 @@ def streamBills[F[_]: Async: Network](
   api.streamBatch(fromDateTime = fromDate)
     .flatMap(batch => Stream.emits(batch.bills))
 
+// Recursive streaming for all pages
 def streamAllPages[F[_]: Async: Network](
   api: LegislativeBillsApi[F],
   fromDate: Option[ZonedDateTime],
@@ -118,23 +133,24 @@ def streamAllPages[F[_]: Async: Network](
   }
 ```
 
-## Processing Pattern
+### Processing Pattern
 
 ```scala
+// Process each item independently — no accumulation
 streamAllPages(api, fromDate)
   .evalMap { dto =>
-    processAndPersist(dto)
+    processAndPersist(dto)  // returns F[ProcessingResult]
   }
   .evalMap { result =>
-    writeProcessingResult(result)
+    writeProcessingResult(result)  // persist to AlloyDB, then release
   }
   .compile
-  .drain
+  .drain  // consume the stream, discard everything
 ```
 
-## FS2 Rules
+### Rules
 - Use `evalMap` for per-item effectful processing
 - Use `Stream.emits` to flatten batches into individual items
-- Use `.compile.drain` when results are persisted per-item
+- Use `.compile.drain` when you don't need to collect results (persisted per-item)
 - Recursive streams for pagination — stop when `lengthRetrieved < pageSize`
-- Never use `.compile.toList` on unbounded streams — drain or fold with bounded accumulation
+- Never use `.compile.toList` on unbounded streams — always drain or fold with bounded accumulation

@@ -65,4 +65,4 @@ class AlloyDbRepositorySpec extends AnyFlatSpec with Matchers with ForAllTestCon
 - Use `trait Fixture` for shared test data
 - IO tests use `.unsafeRunSync()` — **only** acceptable use of `unsafeRunSync`
 - Test DTOs: verify JSON decoding, DTO → DO conversion, DO → DTO conversion
-- Test errors: verify specific exception types thrown with correct messages
+- Test errors: verify specific exception types and messages

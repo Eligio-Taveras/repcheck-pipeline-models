@@ -3,16 +3,20 @@
 ```markdown
 # RepCheck Snapshot Service
 
-**Purpose:** Dedicated first pipeline step. Reads AlloyDB → serializes JSON → writes versioned snapshots to GCS. Downstream apps read snapshots only, never query live DBs mid-run.
+**Purpose**: Dedicated first step in pipeline state machine. Reads AlloyDB → serializes to JSON → writes versioned snapshots to GCS. Downstream apps read snapshots, never query live DBs mid-run.
 
-**Key Design:**
+**Key Decisions**:
 - Dedicated service runs first in state machine
 - All snapshots versioned (semver in filename)
-- Snapshot path passed via PipelineEvent
-- Apps read at startup; exception: pipeline run status writes to DB
-- Workflow definitions published from CI to GCS
+- Snapshot path passed to downstream apps via PipelineEvent
+- Apps read snapshots at startup only (exception: pipeline run status tracking writes to DB)
+- Workflow definitions published from CI to GCS, not created at runtime
 
-## Data Structures
+---
+
+## SnapshotManifest
+
+Metadata stored alongside snapshot data.
 
 ```scala
 final case class SnapshotManifest(
@@ -29,11 +33,21 @@ object SnapshotManifest {
 }
 ```
 
+---
+
 ## SnapshotService Trait
+
+Creates point-in-time snapshots of all data sources before pipeline run.
 
 ```scala
 trait SnapshotService[F[_]] {
-  /** Create snapshots for a pipeline run. @return SnapshotManifest with GCS base path */
+
+  /** Create snapshots for a pipeline run.
+    *
+    * @param runId   Unique pipeline run ID
+    * @param version Semver for this snapshot set
+    * @return SnapshotManifest with the GCS base path for downstream apps
+    */
   def createSnapshots(runId: String, version: String): F[SnapshotManifest]
 
   /** Read a specific snapshot file, deserializing to T. */
@@ -44,6 +58,8 @@ trait SnapshotService[F[_]] {
 }
 ```
 
+---
+
 ## Implementation
 
 ```scala
@@ -51,6 +67,7 @@ object SnapshotService {
 
   final case class SnapshotConfig(
       bucket: String = "repcheck-snapshots",
+      // AlloyDB tables to snapshot
       tables: List[String] = List(
         "bills", "members", "votes", "vote_positions", "amendments", "bill_analyses"
       )
@@ -63,17 +80,30 @@ object SnapshotService {
   ): SnapshotService[F] =
     new SnapshotService[F] {
 
-      def createSnapshots(runId: String, version: String): F[SnapshotManifest] = {
+      def createSnapshots(
+          runId: String,
+          version: String
+      ): F[SnapshotManifest] = {
         val basePath = s"snapshots/$runId"
 
         for {
           createdAt <- Clock[F].realTimeInstant
+
           // Snapshot AlloyDB tables → GCS
           _ <- config.tables.traverse { table =>
-            snapshotAlloyDbTable(table, s"$basePath/$table-$version.json")
+            snapshotAlloyDbTable(
+              table,
+              s"$basePath/$table-$version.json"
+            )
           }
+
           // Snapshot prompt fragments (pin current versions)
-          _ <- snapshotPromptFragments(s"$basePath/prompts/", version)
+          // Prompts are already in GCS, but we copy them into the
+          // run's snapshot directory for immutability
+          _ <- snapshotPromptFragments(
+            s"$basePath/prompts/",
+            version
+          )
 
           manifest = SnapshotManifest(
             runId = runId,
@@ -86,7 +116,7 @@ object SnapshotService {
             basePath = basePath
           )
 
-          // Write manifest as last file (signals snapshot complete)
+          // Write manifest as the last file (signals snapshot is complete)
           _ <- gcsClient.writeJson(
             config.bucket,
             s"$basePath/manifest-$version.json",
@@ -105,18 +135,35 @@ object SnapshotService {
           manifest: SnapshotManifest,
           fileName: String
       ): F[List[T]] =
-        gcsClient.readJson[List[T]](config.bucket, s"${manifest.basePath}/$fileName")
+        gcsClient.readJson[List[T]](
+          config.bucket,
+          s"${manifest.basePath}/$fileName"
+        )
 
-      private def snapshotAlloyDbTable(table: String, gcsPath: String): F[Unit] =
+      private def snapshotAlloyDbTable(
+          table: String,
+          gcsPath: String
+      ): F[Unit] =
         for {
           rows <- alloyDbReader.readTable(table)
           _ <- gcsClient.writeJson(config.bucket, gcsPath, rows)
         } yield ()
 
-      private def snapshotPromptFragments(basePath: String, version: String): F[Unit] =
+      private def snapshotPromptFragments(
+          basePath: String,
+          version: String
+      ): F[Unit] =
         for {
-          billPaths <- gcsClient.listVersioned("repcheck-prompt-configs", "bills/", version)
-          userPaths <- gcsClient.listVersioned("repcheck-prompt-configs", "users/", version)
+          billPaths <- gcsClient.listVersioned(
+            "repcheck-prompt-configs",
+            "bills/",
+            version
+          )
+          userPaths <- gcsClient.listVersioned(
+            "repcheck-prompt-configs",
+            "users/",
+            version
+          )
           _ <- (billPaths ++ userPaths).traverse { srcPath =>
             for {
               bytes <- gcsClient.readBytes("repcheck-prompt-configs", srcPath)
@@ -133,7 +180,11 @@ object SnapshotService {
 }
 ```
 
+---
+
 ## Data Source Reader Traits
+
+Implemented per data source.
 
 ```scala
 /** Reads AlloyDB tables for snapshotting. */

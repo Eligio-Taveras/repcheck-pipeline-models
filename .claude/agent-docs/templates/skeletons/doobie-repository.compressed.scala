@@ -5,7 +5,12 @@
 
 **Purpose:** Per-entity repository trait with auto-derived Read/Write instances for AlloyDB (PostgreSQL) via Doobie + Cats Effect.
 
-**Key Decisions:** One repository trait per entity | Auto-derived Read/Write from case classes | Transactor[F] injection | ConnectionIO queries transacted into F | Retry wrapper for connection errors
+**Key Decisions:**
+- One repository trait per entity
+- Auto-derived Read/Write from case classes
+- Transactor[F] injection
+- ConnectionIO queries transacted into F
+- Retry wrapper for connection-level errors
 
 ---
 
@@ -24,8 +29,8 @@ final case class UserPreferenceDO(
     preferenceId: UUID,
     userId: UUID,
     topic: String,
-    stance: String,
-    importance: Int,
+    stance: String,        // e.g., "support", "oppose", "neutral"
+    importance: Int,        // 1-10 scale
     updatedAt: java.time.Instant
 )
 ```
@@ -52,9 +57,7 @@ trait PreferenceRepository[F[_]] {
 
 ---
 
-## Doobie Implementations
-
-### UserRepository
+## UserRepository Implementation
 
 ```scala
 object UserRepository {
@@ -105,7 +108,9 @@ object UserRepository {
 }
 ```
 
-### PreferenceRepository
+---
+
+## PreferenceRepository Implementation
 
 ```scala
 object PreferenceRepository {
@@ -172,14 +177,7 @@ object TransactorSetup {
   )
 
   def make[F[_]: Async](config: AlloyDbConfig): Resource[F, Transactor[F]] =
-    // TODO: Use HikariTransactor in production for connection pooling
-    // HikariTransactor.newHikariTransactor[F](
-    //   driverClassName = "org.postgresql.Driver",
-    //   url = s"jdbc:postgresql://${config.host}:${config.port}/${config.database}",
-    //   user = config.username,
-    //   pass = config.password,
-    //   connectEC = ExecutionContext.global
-    // )
+    // In production, use HikariTransactor for connection pooling
     Resource.pure(
       Transactor.fromDriverManager[F](
         driver = "org.postgresql.Driver",
@@ -191,13 +189,5 @@ object TransactorSetup {
 }
 ```
 
----
-
-## When To Use
-
-- One repository trait per entity type
-- Tagless final (F[_]) for effect abstraction
-- Auto-derived Read/Write instances from case classes
-- Transact all ConnectionIO into F effect
-- Use retry wrappers for transient connection failures
+**Production Note:** Replace `Resource.pure` with `HikariTransactor.newHikariTransactor[F]` for connection pooling.
 ```

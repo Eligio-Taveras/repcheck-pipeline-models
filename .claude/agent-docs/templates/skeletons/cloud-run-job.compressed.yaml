@@ -4,7 +4,14 @@
 
 **Deploy:** `gcloud run jobs replace cloud-run-job.yaml --region=us-central1`
 
-**Replace placeholders:** `PLACEHOLDER_JOB_NAME`, `PLACEHOLDER_COMPONENT`, `PLACEHOLDER_ENV`, `PLACEHOLDER_IMAGE`, `PLACEHOLDER_TAG`
+**Placeholders to replace:**
+- `PLACEHOLDER_JOB_NAME` — e.g., repcheck-bills-pipeline
+- `PLACEHOLDER_COMPONENT` — e.g., bills-pipeline
+- `PLACEHOLDER_ENV` — dev, staging, prod
+- `PLACEHOLDER_IMAGE` — e.g., bills-pipeline
+- `PLACEHOLDER_TAG` — latest or git SHA
+
+## Job Manifest
 
 ```yaml
 apiVersion: run.googleapis.com/v1
@@ -34,24 +41,31 @@ spec:
               env:
                 - name: GOOGLE_CLOUD_PROJECT
                   value: repcheck-PLACEHOLDER_ENV
-                # ALLOYDB_URL injected via config (see config-pattern.scala)
+                # AlloyDB connection string injected via config (see config-pattern.scala)
                 # - name: ALLOYDB_URL
                 #   value: "jdbc:postgresql://PLACEHOLDER_ALLOYDB_HOST:5432/repcheck"
-                # Pipeline-specific vars: CONGRESS_GOV_API_KEY, ANTHROPIC_API_KEY, SNAPSHOT_PATH
+                # - name: CONGRESS_GOV_API_KEY
+                #   valueFrom:
+                #     secretKeyRef:
+                #       name: congress-api-key
+                #       key: latest
+                # - name: ANTHROPIC_API_KEY
+                #   valueFrom:
+                #     secretKeyRef:
+                #       name: anthropic-api-key
+                #       key: latest
+                # - name: SNAPSHOT_PATH
+                #   value: "gs://repcheck-snapshots-PLACEHOLDER_ENV/PLACEHOLDER_RUN_ID/"
           serviceAccountName: repcheck-pipeline-sa@repcheck-PLACEHOLDER_ENV.iam.gserviceaccount.com
           timeoutSeconds: 3600
           maxRetries: 1
 ```
 
-**Resources:** 2 CPU / 2Gi default; adjust per pipeline (ingestion ↓, LLM analysis ↑)
+**Resource sizing:** 2 CPU / 2Gi default. Adjust per pipeline: ingestion needs less, LLM analysis needs more for concurrent API calls.
+**Timeout:** 1 hour max. Ingestion (30 min), LLM analysis (up to 1 hour), scoring (15-30 min).
+**Retries:** maxRetries=1 is safety net for infrastructure; app handles internal retry via RetryWrapper (exponential backoff).
 
-**Timeout:** 3600s (1 hour); bills/votes ~30min, LLM ~1hr, scoring ~15-30min
-
-**Retry:** maxRetries=1 is infrastructure safety net; app handles internal retry via RetryWrapper (exponential backoff)
-
----
-
-# Cloud Scheduler Trigger (Cron-driven pipelines)
+## Cloud Scheduler Trigger (Cron)
 
 **Create:**
 ```bash

@@ -3,14 +3,16 @@
 ```markdown
 # RepCheck Error Handling Pattern
 
-**Purpose:** Flat, unique exception types per operation. Context implied by executing application.
+**Purpose:** Flat, unique exception types per operation. Context implied by executing application. Stack trace pinpoints exact failure location.
 
 **Key Decisions:**
 - Flat case class exceptions extending Exception (no sealed hierarchies)
-- Each exception is unique — stack trace identifies exactly where and why
-- ErrorClassifier is per-subsystem (adapter owns classification)
-- Systemic errors halt pipeline, Transient errors log + continue
-- Every item has correlationId for filtering in logs
+- Each exception unique — one per operation
+- ErrorClassifier per-subsystem (adapter owns classification)
+- Systemic errors halt pipeline; Transient errors log + continue
+- Every error has correlationId for log filtering
+
+---
 
 ## Exception Types
 
@@ -62,7 +64,7 @@ final case class ScoringFailed(userId: String, billId: String, cause: Throwable)
     extends Exception(s"Failed to score bill $billId for user $userId", cause)
 ```
 
-### Orchestration
+### Orchestrator
 ```scala
 final case class CapacityCheckFailed(cause: Throwable)
     extends Exception(s"Failed to check Cloud Run capacity", cause)
@@ -71,19 +73,24 @@ final case class JobLaunchFailed(jobName: String, cause: Throwable)
     extends Exception(s"Failed to launch Cloud Run job $jobName", cause)
 ```
 
-## ErrorClassifiers
+---
 
-Each subsystem adapter implements its own classifier mapping error types to ErrorSeverity (Transient or Systemic).
+## ErrorClassifiers
 
 ### Congress.gov API
 ```scala
 object CongressGovErrorClassifier extends ErrorClassifier {
   def classify(error: Throwable): ErrorSeverity = error match {
-    case e if e.getMessage != null && e.getMessage.contains("429") => ErrorSeverity.Transient
-    case e if e.getMessage != null && e.getMessage.matches(".*5\\d{2}.*") => ErrorSeverity.Transient
-    case _: java.util.concurrent.TimeoutException => ErrorSeverity.Transient
-    case e if e.getMessage != null && e.getMessage.matches(".*(401|403).*") => ErrorSeverity.Systemic
-    case _: java.net.ConnectException => ErrorSeverity.Systemic
+    case e if e.getMessage != null && e.getMessage.contains("429") =>
+      ErrorSeverity.Transient
+    case e if e.getMessage != null && e.getMessage.matches(".*5\\d{2}.*") =>
+      ErrorSeverity.Transient
+    case _: java.util.concurrent.TimeoutException =>
+      ErrorSeverity.Transient
+    case e if e.getMessage != null && e.getMessage.matches(".*(401|403).*") =>
+      ErrorSeverity.Systemic
+    case _: java.net.ConnectException =>
+      ErrorSeverity.Systemic
     case _ => ErrorSeverity.Transient
   }
 }
@@ -93,10 +100,14 @@ object CongressGovErrorClassifier extends ErrorClassifier {
 ```scala
 object AlloyDbErrorClassifier extends ErrorClassifier {
   def classify(error: Throwable): ErrorSeverity = error match {
-    case _: java.net.ConnectException => ErrorSeverity.Systemic
-    case e if e.getMessage != null && e.getMessage.contains("authentication") => ErrorSeverity.Systemic
-    case e if e.getMessage != null && e.getMessage.contains("violates") => ErrorSeverity.Transient
-    case e if e.getMessage != null && e.getMessage.contains("deadlock") => ErrorSeverity.Transient
+    case _: java.net.ConnectException =>
+      ErrorSeverity.Systemic
+    case e if e.getMessage != null && e.getMessage.contains("authentication") =>
+      ErrorSeverity.Systemic
+    case e if e.getMessage != null && e.getMessage.contains("violates") =>
+      ErrorSeverity.Transient
+    case e if e.getMessage != null && e.getMessage.contains("deadlock") =>
+      ErrorSeverity.Transient
     case _ => ErrorSeverity.Transient
   }
 }
@@ -106,9 +117,10 @@ object AlloyDbErrorClassifier extends ErrorClassifier {
 ```scala
 object PubSubErrorClassifier extends ErrorClassifier {
   def classify(error: Throwable): ErrorSeverity = error match {
-    case _: java.net.ConnectException => ErrorSeverity.Systemic
+    case _: java.net.ConnectException      => ErrorSeverity.Systemic
     case _: java.util.concurrent.TimeoutException => ErrorSeverity.Transient
-    case e if e.getMessage != null && e.getMessage.contains("PERMISSION_DENIED") => ErrorSeverity.Systemic
+    case e if e.getMessage != null && e.getMessage.contains("PERMISSION_DENIED") =>
+      ErrorSeverity.Systemic
     case _ => ErrorSeverity.Transient
   }
 }
@@ -118,10 +130,14 @@ object PubSubErrorClassifier extends ErrorClassifier {
 ```scala
 object LlmErrorClassifier extends ErrorClassifier {
   def classify(error: Throwable): ErrorSeverity = error match {
-    case e if e.getMessage != null && e.getMessage.contains("429") => ErrorSeverity.Transient
-    case e if e.getMessage != null && e.getMessage.matches(".*(401|403).*") => ErrorSeverity.Systemic
-    case e if e.getMessage != null && e.getMessage.contains("overloaded") => ErrorSeverity.Transient
-    case e if e.getMessage != null && e.getMessage.contains("quota") => ErrorSeverity.Systemic
+    case e if e.getMessage != null && e.getMessage.contains("429") =>
+      ErrorSeverity.Transient
+    case e if e.getMessage != null && e.getMessage.matches(".*(401|403).*") =>
+      ErrorSeverity.Systemic
+    case e if e.getMessage != null && e.getMessage.contains("overloaded") =>
+      ErrorSeverity.Transient
+    case e if e.getMessage != null && e.getMessage.contains("quota") =>
+      ErrorSeverity.Systemic
     case _: java.util.concurrent.TimeoutException => ErrorSeverity.Transient
     case _ => ErrorSeverity.Transient
   }

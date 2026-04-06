@@ -3,23 +3,23 @@
 ```markdown
 # RepCheck Skeleton: Congress.gov Entity API Client
 
-**Purpose:** Generic scaffold for Congress.gov v3 paginated entity endpoints. Replace `???` placeholders for your entity (members, votes, amendments, etc.).
+**PURPOSE:** Generic scaffold for Congress.gov v3 paginated entity endpoints. Replace `ENTITY` placeholders with your entity (members, votes, amendments, etc.).
 
-**Implementation Steps:**
-1. Replace ENTITY with entity name (e.g. Member, Vote, Amendment)
-2. Fill in API endpoint path in ENTITYApi
-3. Define ENTITYType enum if entity has type discriminator
-4. Define ENTITYRefDTO if entity references another entity
-5. Add fields to ENTITYDTO and ENTITYDO matching API response shape
+**STEPS TO IMPLEMENT:**
+1. Replace `ENTITY` with entity name
+2. Fill in API endpoint path in `ENTITYApi`
+3. Define `ENTITYType` enum if entity has type discriminator
+4. Define `ENTITYRefDTO` if entity references another entity
+5. Add fields to `ENTITYDTO` and `ENTITYDO` matching API response shape
 6. Fill in Doobie Write/Read field mappings for AlloyDB
 
-**References:**
-- docs/templates/annotated/congress-amendments-api.md — full worked example
-- gov-apis/src/main/scala/congress/gov/apis/LegislativeBillsApi.scala — gold-standard reference
+**REFERENCES:**
+- Full worked example: `docs/templates/annotated/congress-amendments-api.md`
+- Gold standard: `gov-apis/src/main/scala/congress/gov/apis/LegislativeBillsApi.scala`
 
 ---
 
-## 1. Entity Type Enum (skip if entity has no type discriminator)
+## 1. Entity Type Enum (skip if no type discriminator)
 
 ```scala
 package congress.gov.DTOs
@@ -62,7 +62,6 @@ object ENTITYDTOGovSite {
     (c: io.circe.HCursor) =>
       for {
         congress    <- c.downField("congress").as[Int]
-        // Map API field name → internal field name where they differ
         entity_id   <- c.downField("???").as[String]
         entity_type <- c.downField("???").as[String]
         latestAction <- c.downField("latestAction").as[LatestAction]
@@ -81,6 +80,8 @@ object ENTITYDTOGovSite {
 }
 ```
 
+Map API field names → internal field names where they differ. Use `Option[T]` for nullable API fields.
+
 ---
 
 ## 3. Internal DTO — canonical internal shape
@@ -90,7 +91,6 @@ package congress.gov.DTOs
 
 import java.time.ZonedDateTime
 
-// entity_type stays String — type validation deferred to toDO
 case class ENTITYDTO(
     congress: Int,
     entity_id: String,
@@ -100,7 +100,8 @@ case class ENTITYDTO(
     updateDate: ZonedDateTime,
     url: String
 ) {
-  // toDO validates entity_type and returns Either. Left propagates to pipeline fail-and-continue.
+  // toDO validates entity_type and returns Either.
+  // Left propagates to pipeline fail-and-continue without halting.
   def toDO: Either[String, ENTITYDO] = {
     ENTITYType.fromString(entity_type).map { eType =>
       ENTITYDO(
@@ -116,6 +117,8 @@ case class ENTITYDTO(
   }
 }
 ```
+
+`entity_type` stays String — type validation deferred to `toDO`. GovSite decoding should not fail on unknown type strings.
 
 ---
 
@@ -151,8 +154,6 @@ import cats.effect.Concurrent
 import org.http4s.EntityDecoder
 import apiBase.PagedObject
 
-// Must extend PagedObject so PagingApiBase knows when to stop fetching pages.
-// Must have Semigroup so pages can be combined with |+|.
 case class ENTITIESDTO(entities: Seq[ENTITYDTO]) extends PagedObject {
   override def lengthRetrieved: Int = entities.length
 }
@@ -172,6 +173,8 @@ object ENTITIESDTO {
 }
 ```
 
+Must extend `PagedObject` so `PagingApiBase` knows when to stop fetching pages. Must have `Semigroup` so pages can be combined with `|+|`.
+
 ---
 
 ## 6. Domain Object — typed fields, Doobie Read/Write for AlloyDB
@@ -189,24 +192,18 @@ import org.slf4j.Logger
 import congress.gov.DTOs.{ENTITYType, LatestAction}
 import pipeline.models.Tables
 
-// DOs use Doobie auto-derived Read/Write — no toPojo needed.
-// Enum fields require explicit Meta[ENTITYType] instance.
-// Option fields map to nullable columns.
 case class ENTITYDO(
     congress: Int,
     entityId: String,
-    entityType: ENTITYType,              // Typed — validated in toDO
-    latestActionDate: ZonedDateTime,     // Flattened from LatestAction
+    entityType: ENTITYType,
+    latestActionDate: ZonedDateTime,
     latestActionText: String,
     ???: ???,
     updateDate: ZonedDateTime,
-    url: String                          // Stored as TEXT
+    url: String
 ) {
-
-  // Natural key mirrors Congress.gov URL structure (e.g. "118-SAMDT-5")
   def rowId: String = s"${congress}-${entityType.value}-${entityId}"
 
-  // Use Tables constant — never hardcode table names
   def saveENTITY[F[_]: Async](xa: Transactor[F], logger: Logger): F[Unit] =
     sql"""
       INSERT INTO ${Fragment.const(Tables.???)}
@@ -220,6 +217,8 @@ case class ENTITYDO(
     """.update.run.transact(xa).void
 }
 ```
+
+DOs use Doobie auto-derived Read/Write — no toPojo needed. Enum fields require explicit `Meta[ENTITYType]` instance (see enum-with-parsing.md). Option fields map to nullable columns. Natural key mirrors Congress.gov URL structure. Use `Tables` constant — never hardcode table names.
 
 ---
 
@@ -237,13 +236,11 @@ import fs2.io.net.Network
 import apiBase.PagingApiBase
 import congress.gov.DTOs.ENTITIESDTO
 
-// Extends PagingApiBase — all pagination logic inherited.
-// Provides endpoint-specific configuration only.
 class ENTITYApi[F[_]: Async: Network](
     val protocol: String = "https",
     val host: String = "api.congress.gov",
     val apiKey: String = "DEMO_KEY",
-    val path: String = "/v3/???",        // e.g. "/v3/amendment"
+    val path: String = "/v3/???",
     val pageSize: Int = 250
 ) extends PagingApiBase[F, ENTITIESDTO] {
   override val emberClient: Resource[F, Client[F]] =
@@ -263,4 +260,6 @@ object ENTITYApi {
   ).pure[F]
 }
 ```
+
+Extends `PagingApiBase` — all pagination logic inherited. Only provides endpoint-specific configuration.
 ```

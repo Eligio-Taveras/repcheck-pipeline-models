@@ -2,21 +2,20 @@
 
 # Acceptance Criteria: Component 3 — `ingestion-common`
 
-Shared library providing reusable infrastructure for all ingestion pipelines. Contains Congress.gov API client base, XML feed parsers, change detection, event publishing, repository base patterns, placeholder entity creation, and pipeline execution helpers. **Depends on**: `repcheck-shared-models` (Component 1), `repcheck-pipeline-models` (Component 2).
+Shared library providing reusable infrastructure for all ingestion pipelines. Contains Congress.gov API client base, XML feed parsers, change detection, event publishing, repository base patterns, placeholder entity creation, and pipeline execution helpers.
+**Depends on**: `repcheck-shared-models` (Component 1), `repcheck-pipeline-models` (Component 2).
 
 ## System Context
 
-`ingestion-common` is the shared foundation for all ingestion applications. It does NOT contain entity-specific logic — that lives in each pipeline application.
+`ingestion-common` is the shared foundation for all ingestion applications. It provides:
 
-**Provides:**
-1. **Congress.gov API client base** — `CongressGovPaginatedClient[F, T]` — paginated HTTP client with authentication, rate limiting, and retry. Each entity pipeline extends this with its own endpoint and DTO types.
-2. **Senate/House XML feed parsers** — Base XML parsing infrastructure for chamber-specific feeds (votes, members, committees). Each pipeline supplies its own XML-to-DTO mapping.
-3. **Change detection** — Generic case-class diffing via `Product`. Uses `updateDate` as fast pre-filter; when dates indicate change, performs full field-by-field diff (including nested case classes and list additions/removals matched by natural key).
-4. **Event publishing** — Typed wrappers around `PipelineEvent[T]` and `PubSubPublisher[F]` from `pipeline-models`.
+1. **Congress.gov API client base** — `CongressGovPaginatedClient[F, T]` — paginated HTTP with authentication, rate limiting, retry. Each pipeline extends with its own endpoint/DTO types.
+2. **Senate/House XML feed parsers** — Base XML parsing for chamber-specific feeds (votes, members, committees). Each pipeline supplies its own XML-to-DTO mapping.
+3. **Change detection** — Generic case-class diffing via `Product`. Uses `updateDate` as fast pre-filter; full field-by-field diff on change including nested case classes and list additions/removals by natural key.
+4. **Event publishing** — Typed wrappers around `PipelineEvent[T]` and `PubSubPublisher[F]` from `pipeline-models`. Convenience methods for event catalog emission.
 5. **Repository base patterns** — Transactor setup, upsert helpers, table name constants.
-6. **Placeholder entity creation** — When pipeline encounters cross-entity reference to entity not yet ingested, creates placeholder row with only natural key populated. Owner pipeline fills full data later via normal upsert + diff.
-7. **Pipeline execution helpers** — Config loading from Cloud Run Job arguments, run ID extraction, workflow state updates, standard bootstrap sequence.
-8. **Structured logging** — log4cats with JSON output, automatic runId/correlationId context.
+6. **Placeholder entity creation** — When cross-entity reference encountered (e.g., bill references member), create placeholder row with only natural key populated. Owning pipeline fills full data later via normal upsert + diff.
+7. **Pipeline execution helpers** — Config loading from Cloud Run Job arguments, run ID extraction (from Launcher), workflow state updates, standard pipeline bootstrap.
 
 ### Data Flow
 
@@ -67,7 +66,7 @@ Cloud Scheduler → Launcher → Cloud Run Job (pipeline app)
 
 | Task | Area File |
 |------|-----------|
-| Building or extending Congress.gov API client | [3.1 API Client](03-ingestion-common/03.1-api-client.md) |
+| Building or extending the Congress.gov API client | [3.1 API Client](03-ingestion-common/03.1-api-client.md) |
 | Building XML feed parsers for Senate/House data | [3.2 XML Parsers](03-ingestion-common/03.2-xml-parsers.md) |
 | Implementing change detection / entity diffing | [3.3 Change Detection](03-ingestion-common/03.3-change-detection.md) |
 | Publishing pipeline events to Pub/Sub | [3.4 Event Publishing](03-ingestion-common/03.4-event-publishing.md) |
@@ -153,6 +152,6 @@ ingestion-common
 ### Migration Checklist
 
 After `ingestion-common` is implemented:
-1. `gov-apis` module: remove `PagingApiBase`, `Serializers`, `Constants` → move to `ingestion-common`.
-2. `bill-identifier` module: remove `DoobieBillRepository` base pattern, `DatabaseConfig`, `ConfigLoader` → rewrite to depend on `ingestion-common` equivalents.
-3. Both modules retain entity-specific logic (DTOs, API endpoint, processing) — only shared infrastructure moves out.
+1. `gov-apis` module: remove `PagingApiBase`, `Serializers`, `Constants`. Move to `ingestion-common`.
+2. `bill-identifier` module: remove `DoobieBillRepository` base pattern, `DatabaseConfig`, `ConfigLoader`. Rewrite to depend on `ingestion-common` equivalents.
+3. Both modules retain entity-specific logic (bill DTOs, bill API endpoint, bill processing) — only shared infrastructure moves.

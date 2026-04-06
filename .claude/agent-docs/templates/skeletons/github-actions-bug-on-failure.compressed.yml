@@ -2,7 +2,7 @@
 
 # GitHub Actions — Auto-Bug Filing on Test Failure
 
-Add steps after test job in CI workflow. On failure: creates GitHub Issue with error details. On pass: closes matching open bug issues.
+Add to CI workflow after test step. On failure: creates GitHub Issue with error details. On success: closes matching open bug issues.
 
 ## Step 1: Create bug issue on test failure
 
@@ -35,7 +35,7 @@ Add after test step with `if: failure()`
         `*This issue was automatically created by CI. It will be auto-closed when the tests pass.*`,
       ].join('\n');
 
-      // Check if similar issue exists (avoid duplicates)
+      // Avoid duplicate issues by checking existing open bugs with matching workflow/branch
       const existingIssues = await github.rest.issues.listForRepo({
         owner: context.repo.owner,
         repo: context.repo.repo,
@@ -113,8 +113,6 @@ Add after test step with `if: success()`
 
 ## Integration Example
 
-Add to ci.yml:
-
 ```yaml
 jobs:
   build:
@@ -137,8 +135,8 @@ jobs:
       # Paste Step 2 here (auto-close on success)
 ```
 
-## Labels Setup
+## Setup
 
-Create these labels in GitHub repo (Settings → Labels):
+Create labels in GitHub repo (Settings → Labels):
 - `bug/ci-failure` (color: #d73a4a)
 - `automated` (color: #0075ca)

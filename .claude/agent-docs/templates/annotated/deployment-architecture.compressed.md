@@ -2,29 +2,12 @@
 
 # Deployment Architecture — Annotated Reference
 
-## Pattern Summary
-
-RepCheck uses four deployment archetypes. Each repo maps to exactly one archetype, determining build, packaging, and deployment strategy. All pipeline and service repos use Google Distroless Java 21 as runtime base image for minimal attack surface.
-
 ## When to Use This Guide
-
 - Setting up CI/CD for a new repository
 - Containerizing a pipeline application
 - Deploying prompt configs to GCS
 - Publishing a shared library to GitHub Packages
 - Understanding the promotion pipeline (dev → staging → prod)
-
-## Source Files
-
-```
-docs/templates/skeletons/dockerfile-pipeline.txt
-docs/templates/skeletons/docker-compose-local-dev.yml
-docs/templates/skeletons/cloud-run-job.yaml
-docs/templates/skeletons/github-actions-deploy.yml
-docs/templates/skeletons/github-actions-bug-on-failure.yml
-```
-
----
 
 ## Deployment Archetypes
 
@@ -35,15 +18,13 @@ docs/templates/skeletons/github-actions-bug-on-failure.yml
 | **Pipeline** | repcheck-data-ingestion, repcheck-llm-analysis, repcheck-scoring-engine | Cloud Run Job via Artifact Registry | Merge to main | Docker image (Distroless Java 21) |
 | **Service** | repcheck-api-server (future) | Cloud Run Service via Artifact Registry | Merge to main | Docker image (Distroless Java 21) + HTTP port |
 
----
-
 ## Archetype 1: Library
 
-SBT compiles and publishes versioned JAR to GitHub Packages Maven.
+**What gets built:** SBT compiles project and publishes versioned JAR.
 
-**Deploy flow:** `git tag v1.2.0 → push tag → GitHub Actions → sbt publish → GitHub Packages Maven`
+**How it deploys:** `git tag v1.2.0 → push tag → GitHub Actions → sbt publish → GitHub Packages Maven`
 
-**Secrets needed:** `GITHUB_TOKEN` (automatic in GitHub Actions)
+**Secrets needed:** `GITHUB_TOKEN` (automatic)
 
 **Version strategy:** Semantic versioning via git tags. The `version` in `build.sbt` must match the tag.
 
@@ -52,52 +33,48 @@ SBT compiles and publishes versioned JAR to GitHub Packages Maven.
 libraryDependencies += "com.repcheck" %% "shared-models" % "1.2.0"
 ```
 
----
-
 ## Archetype 2: Config (Prompt Engines)
 
-Prompt config files (YAML/JSON) synced directly to GCS. No compilation.
+**What gets built:** Prompt config files (YAML/JSON) synced directly to GCS. No compilation.
 
-**Deploy flow:** `merge to main → GitHub Actions → gcloud auth → gsutil rsync to GCS bucket`
+**How it deploys:** `merge to main → GitHub Actions → gcloud auth → gsutil rsync to GCS bucket`
 
 **GCS layout:**
 ```
 gs://repcheck-prompt-configs/
 ├── bills/
-│   ├── blocks/
+│   ├── blocks/           # Individual prompt fragments
 │   │   ├── fiscal-lens.yaml
 │   │   └── rights-lens.yaml
-│   └── profiles/
+│   └── profiles/         # Composed prompt profiles
 │       └── full-analysis.yaml
 └── users/
     ├── blocks/
     └── profiles/
 ```
 
-**Secrets needed:** Workload Identity Federation (see GCP Authentication below)
+**Secrets needed:** Workload Identity Federation
 
-**Version strategy:** Semver embedded in filenames. Version configurable per consuming app. CI deploys the default version.
-
----
+**Version strategy:** Semver embedded in filenames. Version configurable per consuming app. CI deploys default version.
 
 ## Archetype 3: Pipeline (Cloud Run Jobs)
 
-SBT compiles + sbt-assembly creates fat JAR. Multi-stage Docker build packages into Distroless Java 21 runtime.
+**What gets built:** SBT compiles + sbt-assembly creates fat JAR. Multi-stage Docker build packages into Distroless runtime image.
 
-**Deploy flow:** `merge to main → GitHub Actions → Docker build → push to Artifact Registry → gcloud run jobs update`
+**How it deploys:** `merge to main → GitHub Actions → Docker build → push to Artifact Registry → gcloud run jobs update`
 
 **Base images:**
 - Build stage: `eclipse-temurin:21-jdk` (full JDK for SBT compilation)
 - Runtime stage: `gcr.io/distroless/java21-debian12` (no shell, no package manager, ~130MB)
 
-**Why Distroless:** Minimal attack surface (no shell injection), smaller image (~130MB), Google-maintained security patches. Trade-off: cannot `docker exec` into container (use Cloud Logging instead).
+**Why Distroless:** Minimal attack surface (no shell injection), smaller image (~130MB vs ~300MB), Google maintains patches. Trade-off: cannot `docker exec` into container (use Cloud Logging instead).
 
-**SBT Assembly requirement** in `project/plugins.sbt`:
+**SBT Assembly requirement:** Add to `project/plugins.sbt`:
 ```scala
 addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "2.2.0")
 ```
 
-And in `build.sbt`:
+Add to `build.sbt`:
 ```scala
 lazy val app = project
   .settings(
@@ -111,32 +88,33 @@ lazy val app = project
 
 **JVM tuning for Cloud Run:**
 ```
--XX:MaxRAMPercentage=75.0
+-XX:MaxRAMPercentage=75.0    # Use 75% of container memory limit
 ```
-JDK 21 is container-aware by default — reads cgroup memory limits.
+JDK 21 reads cgroup memory limits automatically.
 
 **Secrets needed:** Workload Identity Federation for Artifact Registry push + Cloud Run deploy. Runtime env vars injected by Cloud Run: `ALLOYDB_URL`, `GOOGLE_CLOUD_PROJECT`, pipeline-specific configs.
 
----
-
 ## Archetype 4: Service (Future — Cloud Run Service)
 
-**Differences from Pipeline:** `EXPOSE 8080` in Dockerfile (http4s Ember listens on port 8080). Cloud Run Service (not Job) — long-running, auto-scaling. Health check endpoint: `GET /health` returns 200. `min-instances: 1` to avoid cold start latency (configurable). Revision-based traffic splitting for canary deploys.
+**Differences from Pipeline archetype:**
+- `EXPOSE 8080` in Dockerfile (http4s Ember listens on 8080)
+- Cloud Run Service (not Job) — long-running, auto-scaling
+- Health check endpoint: `GET /health` returns 200
+- `min-instances: 1` to avoid cold start latency
+- Revision-based traffic splitting for canary deploys
 
-Full spec pending when `repcheck-api-server` development begins.
-
----
+Full spec when `repcheck-api-server` development begins.
 
 ## GCP Authentication — Workload Identity Federation
 
-Keyless authentication from GitHub Actions to GCP. No service account JSON keys stored as secrets.
+Keyless authentication from GitHub Actions to GCP via OIDC token exchange. No service account JSON keys stored as secrets.
 
-**How it works:**
+### How it works:
 1. GitHub Actions generates OIDC token (built-in)
-2. GCP exchanges OIDC token for short-lived credentials
-3. Credentials scoped to service account with least-privilege IAM roles
+2. GCP exchanges OIDC token for short-lived GCP credentials
+3. Credentials scoped to specific service account with least-privilege IAM roles
 
-**One-time GCP setup:**
+### One-time GCP setup:
 
 ```bash
 # 1. Create Workload Identity Pool
@@ -180,7 +158,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   --member="principalSet://iam.googleapis.com/projects/PLACEHOLDER_PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/Eligio-Taveras/PLACEHOLDER_REPO"
 ```
 
-**GitHub Actions usage:**
+### GitHub Actions usage:
 ```yaml
 - id: auth
   uses: google-github-actions/auth@v2
@@ -188,8 +166,6 @@ gcloud iam service-accounts add-iam-policy-binding \
     workload_identity_provider: "projects/PLACEHOLDER_PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
     service_account: "repcheck-deployer@repcheck-PLACEHOLDER_ENV.iam.gserviceaccount.com"
 ```
-
----
 
 ## GCP Resource Naming
 
@@ -207,12 +183,12 @@ us-central1-docker.pkg.dev/repcheck-{env}/repcheck-images/{image-name}:{tag}
 ```
 
 ### Service Accounts:
-- **Deployer** (CI/CD): `repcheck-deployer@repcheck-{env}.iam.gserviceaccount.com`
-- **Pipeline runtime**: `repcheck-pipeline-sa@repcheck-{env}.iam.gserviceaccount.com`
+- **Deployer (CI/CD):** `repcheck-deployer@repcheck-{env}.iam.gserviceaccount.com`
+- **Pipeline runtime:** `repcheck-pipeline-sa@repcheck-{env}.iam.gserviceaccount.com`
 
 ### Cloud Run Jobs:
 ```
-repcheck-{pipeline-name}
+repcheck-{pipeline-name}    # e.g., repcheck-bills-pipeline, repcheck-scoring-pipeline
 ```
 
 ### Pub/Sub Topics:
@@ -229,8 +205,6 @@ repcheck-snapshots-{env}
 repcheck-prompt-configs-{env}
 ```
 
----
-
 ## Promotion Pipeline
 
 ```
@@ -239,27 +213,42 @@ merge to main
     ▼
 ┌─────────────────┐
 │  Deploy to Dev   │  (auto, on every merge)
+│  repcheck-dev    │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  Run E2E Tests   │  (auto, against dev)
+│  Run E2E Tests   │  (auto, against dev environment)
+│  Tagged E2ETest  │
 └────────┬────────┘
          │ pass
          ▼
 ┌─────────────────────┐
-│  Deploy to Staging   │  (auto, if e2e pass)
+│  Deploy to Staging   │  (auto, if e2e tests pass)
+│  repcheck-staging    │
 └────────┬────────────┘
          │
          ▼
 ┌─────────────────────┐
 │  Manual Approval     │  (GitHub Environment protection rule)
+│  Gate                │
 └────────┬────────────┘
          │ approved
          ▼
 ┌─────────────────────┐
-│  Deploy to Prod      │
+│  Deploy to Prod      │  (on approval)
+│  repcheck-prod       │
 └─────────────────────┘
 ```
 
 **Implementation:** GitHub Environments (`dev`, `staging`, `production`) with protection rules. The `production` environment requires manual approval from designated reviewers.
+
+## Source Files
+
+```
+docs/templates/skeletons/dockerfile-pipeline.txt
+docs/templates/skeletons/docker-compose-local-dev.yml
+docs/templates/skeletons/cloud-run-job.yaml
+docs/templates/skeletons/github-actions-deploy.yml
+docs/templates/skeletons/github-actions-bug-on-failure.yml
+```

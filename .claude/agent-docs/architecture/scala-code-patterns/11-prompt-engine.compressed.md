@@ -2,7 +2,7 @@
 
 # 11. Prompt Engine
 
-**Pattern**: All prompt fragments in GCS as serializable instruction blocks. No hardcoded prompts in code. Code is loader + assembler only.
+**Pattern**: All prompt fragments live in GCS as serializable instruction blocks. No hardcoded prompts in code — code is purely loader + assembler.
 
 ## Core Types (base traits in `repcheck-shared-models`)
 
@@ -91,10 +91,9 @@ class GcsBlockLoader[F[_]: Sync](
 ```
 
 ## Rules
-
-- Zero prompt content in code — all fragments in GCS
-- Prompt engine repos: loaders + assemblers only
-- `InstructionBlock`, `PromptProfile`, `StageConfig`, `ChainAssembler` live in `repcheck-shared-models`
-- Weight translation converts numeric weights to prompt language patterns
+- Zero prompt content in code — all fragments live in GCS
+- Prompt engine repos are loaders + assemblers only
+- `InstructionBlock`, `PromptProfile`, `StageConfig`, `ChainAssembler` in `repcheck-shared-models`
+- Weight translation converts numeric weights to prompt language
 - Runtime context injected during assembly, not stored in GCS
 - GCS bucket: `repcheck-prompt-configs` with paths `bills/blocks/`, `bills/profiles/`, `users/blocks/`, `users/profiles/`

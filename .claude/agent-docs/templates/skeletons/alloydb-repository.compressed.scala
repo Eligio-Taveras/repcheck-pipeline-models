@@ -1,17 +1,17 @@
 <!-- GENERATED FILE — DO NOT EDIT. Source: docs/templates/skeletons/alloydb-repository.scala -->
 
 ```markdown
-# RepCheck AlloyDB Repository (pgvector + Doobie)
+# RepCheck Skeleton: AlloyDB Repository (pgvector + Doobie)
 
-**Repo:** repcheck-pipeline-models (shared library)  
-**Purpose:** AlloyDB-specific repository patterns — transactor setup, table constants, upsert patterns, pgvector queries.
+**Repo:** repcheck-pipeline-models (shared library)
+**Purpose:** AlloyDB-specific repository patterns — transactor setup, table name constants, upsert patterns, pgvector embedding queries.
 
 **Key Decisions:**
 - AlloyDB is PostgreSQL-compatible; use standard Doobie HikariCP transactor
 - Table name constants in pipeline-models (single source of truth)
-- Auto-derived Read/Write for case class mapping
-- pgvector stored as TEXT cast to `::vector` in SQL
-- Retry wrapper for transient connection errors
+- Auto-derived Read/Write for case class mapping (no toPojo needed)
+- pgvector stored as TEXT cast to ::vector in SQL
+- Uses retry wrapper for transient connection errors
 
 ---
 
@@ -35,15 +35,11 @@ object Tables {
 }
 ```
 
+Single source of truth for all repos.
+
 ---
 
-## AlloyDB Transactor Setup
-
-**When to Use:**
-- App startup (create once via Resource)
-- AlloyDB connection pooling with HikariCP
-
-**How to Create:**
+## AlloyDB Transactor
 
 ```scala
 object AlloyDbTransactor {
@@ -65,44 +61,51 @@ object AlloyDbTransactor {
 }
 ```
 
-Resource ensures pool shutdown on app termination.
+Creates HikariCP transactor as Resource; pool shut down on app termination. AlloyDB is wire-compatible with PostgreSQL.
 
 ---
 
 ## pgvector Embedding Queries
 
-**Prerequisites:**
+**Setup required:**
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ALTER TABLE bill_analyses ADD COLUMN embedding vector(1536);
 CREATE INDEX ON bill_analyses USING ivfflat (embedding vector_cosine_ops);
 ```
 
-**Domain Model:**
-
+**Data object:**
 ```scala
 case class BillAnalysisDO(
   analysisId: String,
   billId: String,
-  pass1: Option[String],  // JSONB as text
+  pass1: Option[String],  // JSONB stored as text
   pass2: Option[String],
   pass3: Option[String],
   analyzedAt: java.time.Instant
 )
 ```
 
-**Interface:**
-
+**Repository trait:**
 ```scala
 trait BillAnalysisRepository[F[_]] {
-  def insert(analysisId: String, billId: String, pass1Json: String, embedding: Vector[Float]): F[Unit]
-  def findSimilar(queryEmbedding: Vector[Float], limit: Int): F[List[(String, Double)]]  // (billId, distance)
+  def insert(
+    analysisId: String,
+    billId: String,
+    pass1Json: String,
+    embedding: Vector[Float]
+  ): F[Unit]
+
+  def findSimilar(
+    queryEmbedding: Vector[Float],
+    limit: Int
+  ): F[List[(String, Double)]]  // (billId, distance)
+
   def findLatest(billId: String): F[Option[BillAnalysisDO]]
 }
 ```
 
 **Implementation:**
-
 ```scala
 object BillAnalysisRepository {
   def make[F[_]: Async](
@@ -116,7 +119,12 @@ object BillAnalysisRepository {
     )
   ): BillAnalysisRepository[F] = new BillAnalysisRepository[F] {
 
-    def insert(analysisId: String, billId: String, pass1Json: String, embedding: Vector[Float]): F[Unit] = {
+    def insert(
+      analysisId: String,
+      billId: String,
+      pass1Json: String,
+      embedding: Vector[Float]
+    ): F[Unit] = {
       val embStr = embedding.mkString("[", ",", "]")
       val op: F[Unit] =
         sql"""
@@ -126,7 +134,10 @@ object BillAnalysisRepository {
       RetryWrapper.withRetry[F, Unit](retry, classifier, "alloydb-insert-analysis")(op)
     }
 
-    def findSimilar(queryEmbedding: Vector[Float], limit: Int): F[List[(String, Double)]] = {
+    def findSimilar(
+      queryEmbedding: Vector[Float],
+      limit: Int
+    ): F[List[(String, Double)]] = {
       val embStr = queryEmbedding.mkString("[", ",", "]")
       val op: F[List[(String, Double)]] =
         sql"""
@@ -135,7 +146,9 @@ object BillAnalysisRepository {
           ORDER BY distance
           LIMIT $limit
         """.query[(String, Double)].to[List].transact(xa)
-      RetryWrapper.withRetry[F, List[(String, Double)]](retry, classifier, "alloydb-similarity-search")(op)
+      RetryWrapper.withRetry[F, List[(String, Double)]](
+        retry, classifier, "alloydb-similarity-search"
+      )(op)
     }
 
     def findLatest(billId: String): F[Option[BillAnalysisDO]] = {
@@ -147,7 +160,9 @@ object BillAnalysisRepository {
           ORDER BY analyzed_at DESC
           LIMIT 1
         """.query[BillAnalysisDO].option.transact(xa)
-      RetryWrapper.withRetry[F, Option[BillAnalysisDO]](retry, classifier, "alloydb-find-latest-analysis")(op)
+      RetryWrapper.withRetry[F, Option[BillAnalysisDO]](
+        retry, classifier, "alloydb-find-latest-analysis"
+      )(op)
     }
   }
 }
@@ -156,12 +171,6 @@ object BillAnalysisRepository {
 ---
 
 ## Generic Upsert Helper
-
-**When to Use:**
-- Legislative entity upserts (bills, votes, members, amendments)
-- All use ON CONFLICT DO UPDATE with natural key
-
-**Pattern:**
 
 ```scala
 object UpsertHelper {
@@ -178,5 +187,5 @@ object UpsertHelper {
 }
 ```
 
-Fragment-based approach prevents SQL injection while supporting dynamic composition.
+Common pattern for legislative entity upserts (bills, votes, members, amendments). All use ON CONFLICT DO UPDATE with natural key. `Fragment` approach for dynamic SQL composition without string interpolation.
 ```

@@ -4,25 +4,24 @@
 
 ## What These Are
 
-Acceptance criteria are the **authoritative implementation spec** for each RepCheck component. They define:
-- Every class, trait, and method signature
-- Behavioral rules as numbered steps
-- Constructor dependencies
-- Key design decisions with rationale
-- Acceptance criteria tables (each row = testable expectation)
-- Cross-component references linking to exact contracts
+Acceptance criteria are the **authoritative implementation spec** for each component. They define every class, trait, and method signature; behavioral rules as numbered steps; constructor dependencies; key design decisions with rationale; acceptance criteria tables (each row = one testable expectation); and cross-component references linking to exact area files.
 
 ## How Agents Should Use These
 
-**When implementing:** (1) Find component in index, (2) Read component index file for context & routing table, (3) Find area file for your class, (4) Follow cross-references to understand contracts.
+**When implementing a component:**
+1. Read this index to find the component
+2. Read the component's **index file** (e.g., `04-BILLS-PIPELINE.md`) for system context, data flow diagram, package structure, dependency tree, and testing strategy
+3. Use the index file's **Component Routing Table** to find the specific area file for the class you're implementing
+4. Each **area file** is self-contained: class signatures, behavior spec, design decisions, acceptance criteria table
+5. Follow cross-references (e.g., "uses `PlaceholderCreator` from Component 3 §3.6") to understand contracts
 
-**When writing tests:** Each acceptance criteria table row is one test. Column 1 = criterion, Column 2 = test.
+**When writing tests:** The acceptance criteria table in each area file defines every test case. Each row = one test. Column 1 = criterion (what must be true). Column 2 = test (how to verify).
 
-**Relationship to other docs:**
-- **System design:** High-level why/what. Read for onboarding context.
-- **Behavioral specs:** Cross-cutting rules (change detection, event emission, scoring). Acceptance criteria reference but don't duplicate.
-- **Templates:** Code patterns. Acceptance criteria define *what*; templates show *how*.
-- **Acceptance criteria win** where conflicts exist — written later with more precision.
+**Relationship to other documentation:**
+- **System design** (`docs/architecture/system-design/`) provides high-level context
+- **Behavioral specs** (`docs/architecture/BEHAVIORAL_SPECS.md`) define cross-cutting rules (change detection, event emission, scoring). Acceptance criteria reference but do not duplicate.
+- **Templates** (`docs/templates/`) provide code patterns; acceptance criteria define *what*, templates show *how*
+- **Acceptance criteria are authoritative.** Where they conflict with system design, acceptance criteria win.
 
 ---
 
@@ -79,12 +78,12 @@ Component 11 (scoring-engine) ─── depends on 1, 2, 9, 10
 ```
 
 **Common cross-references:**
-- "Component 1 §1.2" → `01-shared-models/01.2-legislative-dos.md` (DO definitions)
-- "Component 2 §2.1" → `02-pipeline-models/02.1-inter-pipeline-communication.md` (event payloads)
-- "Component 3 §3.3" → `03-ingestion-common/03.3-change-detection.md` (ChangeDetector)
-- "Component 3 §3.6" → `03-ingestion-common/03.6-placeholder-entities.md` (PlaceholderCreator)
-- "Component 3 §3.7" → `03-ingestion-common/03.7-execution-helpers.md` (PipelineBootstrap)
+- "Component 1 §1.2" → `01-SHARED-MODELS/01.2-legislative-dos.md` (DO definitions)
+- "Component 2 §2.1" → `02-PIPELINE-MODELS/02.1-inter-pipeline-communication.md` (event payloads)
+- "Component 3 §3.3" → `03-INGESTION-COMMON/03.3-change-detection.md` (ChangeDetector)
+- "Component 3 §3.6" → `03-INGESTION-COMMON/03.6-placeholder-entities.md` (PlaceholderCreator)
+- "Component 3 §3.7" → `03-INGESTION-COMMON/03.7-execution-helpers.md` (PipelineBootstrap)
 
 ## Numbering Convention
 
-Components: two-digit (01–12). Area files: `{component}.{area}` (e.g., `04.3`). Cross-references: "Component N §N.M" → file `{NN}-{folder}/{NN}.{M}-{name}.md`.
+Components use two-digit numbers (01–12). Area files use `{component}.{area}` numbering (e.g., `04.3` = Component 4, Area 3). Cross-references use "Component N §N.M" → file `{NN}-{folder}/{NN}.{M}-{name}.md`.

@@ -58,10 +58,9 @@ def loadConfig[F[_]: Sync](args: List[String]): F[AppConfig] =
 ```
 
 ## Rules
-
-- Flat exception case classes — no sealed trait hierarchy
-- Running app name provides domain context
-- Reuse common errors (`FetchFailed`, `DecodeFailed`, `PersistFailed`) across pipelines
+- Flat exception case classes; no sealed trait hierarchy
+- Running application name provides domain context
+- Reuse same error classes across pipelines (`FetchFailed`, `DecodeFailed`, `PersistFailed`)
 - Always include `entityId` and `cause` for direct stack trace to broken code
 - Use `.adaptError` to wrap lower-level exceptions in domain-specific errors
 - Common error classes in `repcheck-pipeline-models` (operational concerns)

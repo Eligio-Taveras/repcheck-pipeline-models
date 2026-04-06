@@ -31,7 +31,7 @@ object BillIngestionApp extends IOApp.Simple {
 }
 ```
 
-## Constraint Hierarchy (use the weakest that works)
+### Constraint Hierarchy (use the weakest that works)
 
 | Constraint | Use When |
 |---|---|
@@ -41,7 +41,7 @@ object BillIngestionApp extends IOApp.Simple {
 | `Async[F]` | Non-blocking I/O, concurrency, sleep/timeout |
 | `Async[F]: Network` | HTTP client (http4s) |
 
-## Rules
+### Rules
 - Never use `IO` directly in library code — always `F[_]` with constraints
 - Never use `unsafeRunSync()` except in test helpers
 - Application entry points extend `IOApp.Simple` and wire `IO`

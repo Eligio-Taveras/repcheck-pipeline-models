@@ -1,10 +1,10 @@
 <!-- GENERATED FILE — DO NOT EDIT. Source: docs/architecture/scala-code-patterns/12-llm-client.md -->
 
-# LLM Client Abstraction
+# 12. LLM Client Abstraction
 
 **Pattern**: Vendor-neutral prompt model assembled by prompt engines. Pluggable adapters convert to vendor-specific SDKs. Supports fan-out to multiple LLM providers.
 
-## Vendor-Neutral Types (`repcheck-llm-client/models/`)
+### Vendor-Neutral Types (in `repcheck-llm-client/models/`)
 
 ```scala
 enum Role {
@@ -37,7 +37,7 @@ case class LlmResponse(
 )
 ```
 
-## Adapter Trait
+### Adapter Trait
 
 ```scala
 trait LlmAdapter[F[_]] {
@@ -46,7 +46,7 @@ trait LlmAdapter[F[_]] {
 }
 ```
 
-## Dispatcher (fan-out to multiple providers)
+### Dispatcher
 
 ```scala
 trait LlmDispatcher[F[_]] {
@@ -61,7 +61,7 @@ class ConfigurableLlmDispatcher[F[_]: Async](
 }
 ```
 
-## Claude Adapter (`repcheck-llm-client/adapters/claude/`)
+### Claude Adapter (in `repcheck-llm-client/adapters/claude/`)
 
 ```scala
 import com.anthropic.client.AnthropicClient
@@ -112,27 +112,26 @@ class ClaudeAdapter[F[_]: Sync](
       .role(msg.role match {
         case Role.User      => MessageParam.Role.USER
         case Role.Assistant => MessageParam.Role.ASSISTANT
-        case Role.System    => MessageParam.Role.USER // system handled separately
+        case Role.System    => MessageParam.Role.USER
       })
       .content(msg.content)
       .build()
 }
 ```
 
-## Multi-Provider Storage
+### Multi-Provider Storage
 
-AlloyDB analyses table — one row per (bill_id, provider):
+AlloyDB analyses table stores one row per (bill_id, provider):
 ```
 (bill_id="hr-1-118", provider="claude", model="claude-sonnet-4-6", result_json=...)
-(bill_id="hr-1-118", provider="gpt", ...)
+(bill_id="hr-1-118", provider="gpt", ...)  ← future
 ```
 
-## Rules
-
+### Rules
 - `LlmRequest`, `LlmResponse`, `LlmAdapter`, `LlmDispatcher` in `repcheck-llm-client/models/` (published)
-- Vendor-specific adapters in `repcheck-llm-client/adapters/{vendor}/`
+- Vendor adapters in `repcheck-llm-client/adapters/{vendor}/`
 - Prompt engines build `LlmRequest` — never touch vendor SDKs
-- Adapters: convert `LlmRequest` → vendor DTO → SDK call → convert response → `LlmResponse`
+- Adapters convert `LlmRequest` → vendor DTO → SDK call → `LlmResponse`
 - `LlmResponse` always includes `provider` and `model`
-- `ConfigurableLlmDispatcher` uses `parTraverse` for concurrent fan-out
-- Active adapters controlled via config — add new providers without code changes
+- `ConfigurableLlmDispatcher` uses `parTraverse` for concurrency
+- Active adapters controlled via config — add without code changes

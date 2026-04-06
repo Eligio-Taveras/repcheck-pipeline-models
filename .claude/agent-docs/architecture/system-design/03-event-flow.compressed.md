@@ -40,4 +40,4 @@ sequenceDiagram
     Scoring->>DB: Write pre-computed scores
 ```
 
-**Pattern:** Cloud Scheduler triggers four pipelines on schedule. Bill/Vote/Member/Amendment pipelines store data in AlloyDB and publish events to Pub/Sub. Bill Analysis subscribes to `bill.text.available`, fetches text, calls LLM for structured analysis, stores results + embeddings, publishes `analysis.completed`. Alignment Scoring subscribes to `analysis.completed` and `vote.recorded`, reads stored analyses/votes/profiles, calls LLM for similarity-based scoring using pgvector, writes pre-computed scores to DB.
+**Pattern:** Cloud Scheduler triggers four parallel pipelines (bills, votes, members, amendments) that write to AlloyDB and publish events to Pub/Sub. Bill Analysis subscribes to `bill.text.available`, fetches text, calls LLM for structured analysis with embeddings, stores results, and publishes `analysis.completed`. Alignment Scoring subscribes to `analysis.completed` and `vote.recorded`, reads analyses/votes/profiles, computes LLM-based alignment scores via pgvector similarity, and pre-computes scores in DB.
