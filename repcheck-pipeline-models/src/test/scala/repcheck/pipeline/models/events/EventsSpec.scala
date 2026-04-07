@@ -113,7 +113,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val event   = VoteRecordedEvent("vote-proc-1", None, "Senate", Instant.parse("2024-03-10T14:00:00Z"), 118, false)
     val json    = event.asJson.noSpaces
     val decoded = decode[VoteRecordedEvent](json)
-    decoded shouldBe Right(event)
+    val _       = decoded shouldBe Right(event)
     decoded.fold(_ => fail("decode failed"), _.billId shouldBe None)
   }
 
@@ -121,7 +121,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val event   = BillTextAvailableEvent("s-42", 118, "https://example.com/text", "pdf", "ih", None)
     val json    = event.asJson.noSpaces
     val decoded = decode[BillTextAvailableEvent](json)
-    decoded shouldBe Right(event)
+    val _       = decoded shouldBe Right(event)
     decoded.fold(_ => fail("decode failed"), _.previousVersionCode shouldBe None)
   }
 
@@ -175,7 +175,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val correlationId = UUID.randomUUID()
     val ts            = Instant.now()
     val envelope      = PipelineEvent("member.updated", payload, ts, eventId, correlationId, "member-pipeline")
-    envelope.eventId shouldBe eventId
+    val _             = envelope.eventId shouldBe eventId
     envelope.eventId shouldBe a[UUID]
   }
 
@@ -183,7 +183,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val payload  = MemberUpdatedEvent("M000355")
     val ts       = Instant.parse("2024-07-01T08:00:00Z")
     val envelope = PipelineEvent("member.updated", payload, ts, UUID.randomUUID(), UUID.randomUUID(), "member-pipeline")
-    envelope.timestamp shouldBe ts
+    val _        = envelope.timestamp shouldBe ts
     envelope.timestamp shouldBe a[Instant]
   }
 
@@ -192,7 +192,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val payload       = MemberUpdatedEvent("M000355")
     val envelope =
       PipelineEvent("member.updated", payload, Instant.now(), UUID.randomUUID(), correlationId, "member-pipeline")
-    envelope.correlationId shouldBe correlationId
+    val _ = envelope.correlationId shouldBe correlationId
     envelope.correlationId shouldBe a[UUID]
   }
 
@@ -201,7 +201,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   "Decoder" should "fail with field name when a required field is missing" in {
     val json   = """{"congress":118,"textUrl":"http://x","textFormat":"xml","versionCode":"ih"}"""
     val result = decode[BillTextAvailableEvent](json)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result match {
       case Left(err) => err.getMessage should include("billId")
       case Right(_)  => fail("expected Left")
@@ -214,7 +214,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"eventType":"member.updated","payload":{"memberId":"M000355"},"timestamp":"2024-06-01T12:00:00Z","eventId":"550e8400-e29b-41d4-a716-446655440000","source":"test"}"""
     val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result match {
       case Left(err) => err.getMessage should include("correlationId")
       case Right(_)  => fail("expected Left")
@@ -225,7 +225,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"eventType":"member.updated","payload":{"memberId":"M000355"},"timestamp":"not-a-timestamp","eventId":"550e8400-e29b-41d4-a716-446655440000","correlationId":"550e8400-e29b-41d4-a716-446655440001","source":"test"}"""
     val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result match {
       case Left(err) => err.getMessage should include("Invalid timestamp")
       case Right(_)  => fail("expected Left")
@@ -236,7 +236,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"eventType":"member.updated","payload":{"memberId":"M000355"},"timestamp":"2024-06-01T12:00:00Z","eventId":"not-a-uuid","correlationId":"550e8400-e29b-41d4-a716-446655440001","source":"test"}"""
     val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result match {
       case Left(err) => err.getMessage should include("Invalid UUID")
       case Right(_)  => fail("expected Left")
@@ -250,11 +250,11 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val json =
       s"""{"billId":"hr-1","versionId":"$versionId","congress":118,"versionCode":"ih","previousVersionCode":null,"committeeCode":"HSAG"}"""
     val result = decode[BillTextIngestedEvent](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { e =>
-      e.billId shouldBe "hr-1"
-      e.versionId shouldBe UUID.fromString(versionId)
-      e.previousVersionCode shouldBe None
+      val _ = e.billId shouldBe "hr-1"
+      val _ = e.versionId shouldBe UUID.fromString(versionId)
+      val _ = e.previousVersionCode shouldBe None
       e.committeeCode shouldBe Some("HSAG")
     }
   }
@@ -264,9 +264,9 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val json =
       s"""{"billId":"s-42","analysisId":"$analysisId","topics":["tax","health"],"passesExecuted":[1,2],"modelUsed":"claude-3"}"""
     val result = decode[AnalysisCompletedEvent](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { e =>
-      e.topics shouldBe List("tax", "health")
+      val _ = e.topics shouldBe List("tax", "health")
       e.passesExecuted shouldBe List(1, 2)
     }
   }
@@ -275,7 +275,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val userId = "550e8400-e29b-41d4-a716-446655440002"
     val json   = s"""{"userId":"$userId","topicsChanged":["defense"]}"""
     val result = decode[UserProfileUpdatedEvent](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach(_.topicsChanged shouldBe List("defense"))
   }
 
@@ -284,7 +284,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val requestId = "550e8400-e29b-41d4-a716-446655440004"
     val json      = s"""{"userId":"$userId","requestId":"$requestId","source":"scheduled"}"""
     val result    = decode[ScoringUserRequestedEvent](json)
-    result.isRight shouldBe true
+    val _         = result.isRight shouldBe true
     result.foreach(_.source shouldBe "scheduled")
   }
 
@@ -293,9 +293,9 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val requestId = "550e8400-e29b-41d4-a716-446655440006"
     val json      = s"""{"userId":"$userId","requestId":"$requestId","memberScoreCount":42,"status":"completed"}"""
     val result    = decode[ScoringUserCompletedEvent](json)
-    result.isRight shouldBe true
+    val _         = result.isRight shouldBe true
     result.foreach { e =>
-      e.memberScoreCount shouldBe 42
+      val _ = e.memberScoreCount shouldBe 42
       e.status shouldBe "completed"
     }
   }
@@ -304,9 +304,9 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val versionId = "550e8400-e29b-41d4-a716-446655440007"
     val json      = s"""{"billId":"hr-99","versionId":"$versionId","conceptGroupCount":5,"sectionCount":12}"""
     val result    = decode[DecompositionCompletedEvent](json)
-    result.isRight shouldBe true
+    val _         = result.isRight shouldBe true
     result.foreach { e =>
-      e.conceptGroupCount shouldBe 5
+      val _ = e.conceptGroupCount shouldBe 5
       e.sectionCount shouldBe 12
     }
   }
@@ -315,16 +315,16 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"voteId":"v-1","billId":null,"chamber":"House","date":"2024-01-15T10:30:00Z","congress":118,"isUpdate":false}"""
     val result = decode[VoteRecordedEvent](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach(_.billId shouldBe None)
   }
 
   "DailyIngestionStartEvent decoder" should "decode from raw JSON string" in {
     val json   = """{"date":"2024-01-15","congress":118}"""
     val result = decode[DailyIngestionStartEvent](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { e =>
-      e.date shouldBe "2024-01-15"
+      val _ = e.date shouldBe "2024-01-15"
       e.congress shouldBe 118
     }
   }
@@ -356,12 +356,12 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     implicit val dec: io.circe.Decoder[PipelineEvent[MemberUpdatedEvent]] =
       PipelineEvent.validatedDecoder[MemberUpdatedEvent]
     val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result match {
       case Left(err) =>
-        err.getMessage should include("Unknown eventType")
-        err.getMessage should include("unknown.event")
-        err.getMessage should include("member.updated")
+        val _ = err.getMessage should include("Unknown eventType")
+        val _ = err.getMessage should include("unknown.event")
+        val _ = err.getMessage should include("member.updated")
         err.getMessage should include("vote.recorded")
       case Right(_) => fail("expected Left")
     }
@@ -371,10 +371,10 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"eventType":"member.updated","payload":{"wrongField":"bad"},"timestamp":"2024-06-01T12:00:00Z","eventId":"550e8400-e29b-41d4-a716-446655440000","correlationId":"550e8400-e29b-41d4-a716-446655440001","source":"test"}"""
     val result = decode[PipelineEvent[MemberUpdatedEvent]](json)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result match {
       case Left(err) =>
-        err.getMessage should include("member.updated")
+        val _ = err.getMessage should include("member.updated")
         err.getMessage should include("payload")
       case Right(_) => fail("expected Left")
     }
@@ -461,9 +461,9 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   // ── EventTypes.allEventTypes ──
 
   "EventTypes.allEventTypes" should "contain all 10 known event types" in {
-    EventTypes.allEventTypes.size shouldBe 10
-    EventTypes.allEventTypes should contain("bill.text.available")
-    EventTypes.allEventTypes should contain("vote.recorded")
+    val _ = EventTypes.allEventTypes.size shouldBe 10
+    val _ = EventTypes.allEventTypes should contain("bill.text.available")
+    val _ = EventTypes.allEventTypes should contain("vote.recorded")
     EventTypes.allEventTypes should contain("scoring.user.completed")
   }
 
@@ -483,12 +483,12 @@ class EventsSpec extends AnyFlatSpec with Matchers {
       .unsafeRunSync()
     val after = Instant.now()
 
-    event.eventType shouldBe "daily.ingestion.start"
-    event.payload shouldBe payload
-    event.correlationId shouldBe correlationId
-    event.source shouldBe "daily-ingestion"
-    event.eventId shouldBe a[java.util.UUID]
-    (event.timestamp.equals(before) || event.timestamp.isAfter(before)) shouldBe true
+    val _ = event.eventType shouldBe "daily.ingestion.start"
+    val _ = event.payload shouldBe payload
+    val _ = event.correlationId shouldBe correlationId
+    val _ = event.source shouldBe "daily-ingestion"
+    val _ = event.eventId shouldBe a[java.util.UUID]
+    val _ = (event.timestamp.equals(before) || event.timestamp.isAfter(before)) shouldBe true
     (event.timestamp.equals(after) || event.timestamp.isBefore(after)) shouldBe true
   }
 

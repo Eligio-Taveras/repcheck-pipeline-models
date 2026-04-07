@@ -77,30 +77,30 @@ class TablesSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "match expected values for key constants" in {
-    Tables.Members shouldBe "members"
-    Tables.Bills shouldBe "bills"
-    Tables.Votes shouldBe "votes"
-    Tables.Amendments shouldBe "amendments"
-    Tables.Committees shouldBe "committees"
-    Tables.Scores shouldBe "scores"
-    Tables.Users shouldBe "users"
-    Tables.PipelineRuns shouldBe "pipeline_runs"
-    Tables.EventLog shouldBe "event_log"
+    val _ = Tables.Members shouldBe "members"
+    val _ = Tables.Bills shouldBe "bills"
+    val _ = Tables.Votes shouldBe "votes"
+    val _ = Tables.Amendments shouldBe "amendments"
+    val _ = Tables.Committees shouldBe "committees"
+    val _ = Tables.Scores shouldBe "scores"
+    val _ = Tables.Users shouldBe "users"
+    val _ = Tables.PipelineRuns shouldBe "pipeline_runs"
+    val _ = Tables.EventLog shouldBe "event_log"
     Tables.LisMemberMapping shouldBe "lis_member_mapping"
   }
 
   // ── PipelineEventTypes re-export verification ──
 
   "PipelineEventTypes" should "re-export all EventTypes values correctly" in {
-    PipelineEventTypes.BillTextAvailable shouldBe EventTypes.BillTextAvailable
-    PipelineEventTypes.BillTextIngested shouldBe EventTypes.BillTextIngested
-    PipelineEventTypes.DecompositionCompleted shouldBe EventTypes.DecompositionCompleted
-    PipelineEventTypes.VoteRecorded shouldBe EventTypes.VoteRecorded
-    PipelineEventTypes.AnalysisCompleted shouldBe EventTypes.AnalysisCompleted
-    PipelineEventTypes.MemberUpdated shouldBe EventTypes.MemberUpdated
-    PipelineEventTypes.UserProfileUpdated shouldBe EventTypes.UserProfileUpdated
-    PipelineEventTypes.ScoringUserRequested shouldBe EventTypes.ScoringUserRequested
-    PipelineEventTypes.ScoringUserCompleted shouldBe EventTypes.ScoringUserCompleted
+    val _ = PipelineEventTypes.BillTextAvailable shouldBe EventTypes.BillTextAvailable
+    val _ = PipelineEventTypes.BillTextIngested shouldBe EventTypes.BillTextIngested
+    val _ = PipelineEventTypes.DecompositionCompleted shouldBe EventTypes.DecompositionCompleted
+    val _ = PipelineEventTypes.VoteRecorded shouldBe EventTypes.VoteRecorded
+    val _ = PipelineEventTypes.AnalysisCompleted shouldBe EventTypes.AnalysisCompleted
+    val _ = PipelineEventTypes.MemberUpdated shouldBe EventTypes.MemberUpdated
+    val _ = PipelineEventTypes.UserProfileUpdated shouldBe EventTypes.UserProfileUpdated
+    val _ = PipelineEventTypes.ScoringUserRequested shouldBe EventTypes.ScoringUserRequested
+    val _ = PipelineEventTypes.ScoringUserCompleted shouldBe EventTypes.ScoringUserCompleted
     PipelineEventTypes.DailyIngestionStart shouldBe EventTypes.DailyIngestionStart
   }
 

@@ -28,9 +28,9 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       minimalStep("step-b", deps = List("step-a")),
     )
     val result = WorkflowDefinition.validated("wf-1", "test-workflow", steps, None)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { wf =>
-      wf.workflowId shouldBe "wf-1"
+      val _ = wf.workflowId shouldBe "wf-1"
       wf.steps.length shouldBe 2
     }
   }
@@ -41,7 +41,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       minimalStep("step-b", deps = List("step-a")),
     )
     val result = WorkflowDefinition.validated("wf-1", "cycle-test", steps, None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("Circular dependency"))
   }
 
@@ -50,9 +50,9 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       minimalStep("step-a", deps = List("nonexistent-step"))
     )
     val result = WorkflowDefinition.validated("wf-1", "missing-dep", steps, None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach { msg =>
-      msg should include("Missing dependency")
+      val _ = msg should include("Missing dependency")
       msg should include("nonexistent-step")
     }
   }
@@ -63,7 +63,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       minimalStep("step-a"),
     )
     val result = WorkflowDefinition.validated("wf-1", "dup-test", steps, None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("Duplicate step names"))
   }
 
@@ -75,7 +75,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       identity = IdentityConfig(serviceAccount = "sa@project.iam.gserviceaccount.com"),
     )
     val result = WorkflowDefinition.validated("wf-1", "bad-cpu", List(step), None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("Invalid CPU"))
   }
 
@@ -87,7 +87,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       identity = IdentityConfig(serviceAccount = "sa@project.iam.gserviceaccount.com"),
     )
     val result = WorkflowDefinition.validated("wf-1", "bad-retries", List(step), None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("maxRetries"))
   }
 
@@ -99,7 +99,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       identity = IdentityConfig(serviceAccount = "sa@project.iam.gserviceaccount.com"),
     )
     val result = WorkflowDefinition.validated("wf-1", "too-many-retries", List(step), None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("maxRetries"))
   }
 
@@ -111,7 +111,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       identity = IdentityConfig(serviceAccount = "sa@project.iam.gserviceaccount.com"),
     )
     val result = WorkflowDefinition.validated("wf-1", "zero-tasks", List(step), None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("taskCount"))
   }
 
@@ -123,7 +123,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       identity = IdentityConfig(serviceAccount = "sa@project.iam.gserviceaccount.com"),
     )
     val result = WorkflowDefinition.validated("wf-1", "bad-memory", List(step), None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("Invalid memory format"))
   }
 
@@ -132,7 +132,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
     val step2Gi   = minimalStep("step-2gi").copy(resources = ResourceConfig(memory = "2Gi"))
     val result1   = WorkflowDefinition.validated("wf-1", "test", List(step512Mi), None)
     val result2   = WorkflowDefinition.validated("wf-2", "test", List(step2Gi), None)
-    result1.isRight shouldBe true
+    val _         = result1.isRight shouldBe true
     result2.isRight shouldBe true
   }
 
@@ -146,7 +146,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       ),
     )
     val result = WorkflowDefinition.validated("wf-1", "bad-probe", List(step), None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("initialDelaySeconds"))
   }
 
@@ -160,14 +160,14 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       ),
     )
     val result = WorkflowDefinition.validated("wf-1", "bad-timeout", List(step), None)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("timeoutSeconds"))
   }
 
   it should "return Right for a minimal step with just image and identity" in {
     val steps  = List(minimalStep("minimal"))
     val result = WorkflowDefinition.validated("wf-1", "minimal-wf", steps, Some("0 9 * * *"))
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach(wf => wf.schedule shouldBe Some("0 9 * * *"))
   }
 
@@ -177,12 +177,12 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"image":"gcr.io/proj/img:v1","command":["sh","-c"],"args":["run"],"env":{"K":"V"},"secretMounts":{"p":"s"}}"""
     val result = decode[ContainerConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { c =>
-      c.image shouldBe "gcr.io/proj/img:v1"
-      c.command shouldBe Some(List("sh", "-c"))
-      c.args shouldBe List("run")
-      c.env shouldBe Map("K" -> "V")
+      val _ = c.image shouldBe "gcr.io/proj/img:v1"
+      val _ = c.command shouldBe Some(List("sh", "-c"))
+      val _ = c.args shouldBe List("run")
+      val _ = c.env shouldBe Map("K" -> "V")
       c.secretMounts shouldBe Map("p" -> "s")
     }
   }
@@ -190,17 +190,17 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
   it should "decode with null optional fields" in {
     val json   = """{"image":"img:v1","command":null,"args":[],"env":{},"secretMounts":{}}"""
     val result = decode[ContainerConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach(_.command shouldBe None)
   }
 
   "ResourceConfig decoder" should "decode from raw JSON with all fields" in {
     val json   = """{"cpu":"4","memory":"2Gi","gpu":"nvidia-t4"}"""
     val result = decode[ResourceConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { r =>
-      r.cpu shouldBe "4"
-      r.memory shouldBe "2Gi"
+      val _ = r.cpu shouldBe "4"
+      val _ = r.memory shouldBe "2Gi"
       r.gpu shouldBe Some("nvidia-t4")
     }
   }
@@ -208,18 +208,18 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
   it should "decode with null gpu" in {
     val json   = """{"cpu":"1","memory":"512Mi","gpu":null}"""
     val result = decode[ResourceConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach(_.gpu shouldBe None)
   }
 
   "ExecutionConfig decoder" should "decode from raw JSON with all fields" in {
     val json   = """{"timeout":"30m","maxRetries":5,"taskCount":10,"parallelism":4}"""
     val result = decode[ExecutionConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { e =>
-      e.timeout shouldBe "30m"
-      e.maxRetries shouldBe 5
-      e.taskCount shouldBe 10
+      val _ = e.timeout shouldBe "30m"
+      val _ = e.maxRetries shouldBe 5
+      val _ = e.taskCount shouldBe 10
       e.parallelism shouldBe 4
     }
   }
@@ -227,9 +227,9 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
   "NetworkConfig decoder" should "decode from raw JSON with all fields" in {
     val json   = """{"vpcConnector":"vpc-1","vpcEgress":"all","cloudSqlConnections":["conn-1","conn-2"]}"""
     val result = decode[NetworkConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { n =>
-      n.vpcConnector shouldBe Some("vpc-1")
+      val _ = n.vpcConnector shouldBe Some("vpc-1")
       n.cloudSqlConnections shouldBe List("conn-1", "conn-2")
     }
   }
@@ -237,16 +237,16 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
   it should "decode with null optional fields" in {
     val json   = """{"vpcConnector":null,"vpcEgress":null,"cloudSqlConnections":[]}"""
     val result = decode[NetworkConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach(_.vpcConnector shouldBe None)
   }
 
   "VolumeConfig decoder" should "decode from raw JSON with all fields" in {
     val json   = """{"gcsVolumes":{"/data":"gs://b"},"inMemoryVolumes":{"/tmp":"128Mi"}}"""
     val result = decode[VolumeConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { v =>
-      v.gcsVolumes shouldBe Map("/data" -> "gs://b")
+      val _ = v.gcsVolumes shouldBe Map("/data" -> "gs://b")
       v.inMemoryVolumes shouldBe Map("/tmp" -> "128Mi")
     }
   }
@@ -254,9 +254,9 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
   "MetadataConfig decoder" should "decode from raw JSON with all fields" in {
     val json   = """{"labels":{"app":"rc"},"annotations":{"note":"test"}}"""
     val result = decode[MetadataConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { m =>
-      m.labels shouldBe Map("app" -> "rc")
+      val _ = m.labels shouldBe Map("app" -> "rc")
       m.annotations shouldBe Map("note" -> "test")
     }
   }
@@ -265,10 +265,10 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"startupProbe":{"initialDelaySeconds":5,"timeoutSeconds":2,"periodSeconds":10,"failureThreshold":3},"livenessProbe":{"initialDelaySeconds":0,"timeoutSeconds":1,"periodSeconds":10,"failureThreshold":3}}"""
     val result = decode[HealthCheckConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { h =>
-      h.startupProbe.isDefined shouldBe true
-      h.livenessProbe.isDefined shouldBe true
+      val _ = h.startupProbe.isDefined shouldBe true
+      val _ = h.livenessProbe.isDefined shouldBe true
       h.startupProbe.foreach(_.initialDelaySeconds shouldBe 5)
     }
   }
@@ -276,9 +276,9 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
   it should "decode with null probes" in {
     val json   = """{"startupProbe":null,"livenessProbe":null}"""
     val result = decode[HealthCheckConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { h =>
-      h.startupProbe shouldBe None
+      val _ = h.startupProbe shouldBe None
       h.livenessProbe shouldBe None
     }
   }
@@ -375,30 +375,30 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
 
   it should "return Left for negative initialDelaySeconds" in {
     val result = ProbeConfig.validate(ProbeConfig(initialDelaySeconds = -1), "s")
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(_ should include("initialDelaySeconds"))
   }
 
   it should "return Left for periodSeconds = 0" in {
     val result = ProbeConfig.validate(ProbeConfig(periodSeconds = 0), "s")
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(_ should include("periodSeconds"))
   }
 
   it should "return Left for periodSeconds > 240" in {
     val result = ProbeConfig.validate(ProbeConfig(periodSeconds = 241), "s")
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(_ should include("periodSeconds"))
   }
 
   it should "return Left for failureThreshold = 0" in {
     val result = ProbeConfig.validate(ProbeConfig(failureThreshold = 0), "s")
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(_ should include("failureThreshold"))
   }
 
   it should "return Right for boundary values" in {
-    ProbeConfig.validate(
+    val _ = ProbeConfig.validate(
       ProbeConfig(initialDelaySeconds = 0, timeoutSeconds = 1, periodSeconds = 1, failureThreshold = 1),
       "s",
     ) shouldBe Right(())
@@ -449,9 +449,9 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
   "ProbeConfig encoder" should "encode all fields" in {
     val probe = ProbeConfig(5, 10, 30, 5)
     val json  = probe.asJson
-    json.hcursor.get[Int]("initialDelaySeconds") shouldBe Right(5)
-    json.hcursor.get[Int]("timeoutSeconds") shouldBe Right(10)
-    json.hcursor.get[Int]("periodSeconds") shouldBe Right(30)
+    val _     = json.hcursor.get[Int]("initialDelaySeconds") shouldBe Right(5)
+    val _     = json.hcursor.get[Int]("timeoutSeconds") shouldBe Right(10)
+    val _     = json.hcursor.get[Int]("periodSeconds") shouldBe Right(30)
     json.hcursor.get[Int]("failureThreshold") shouldBe Right(5)
   }
 
@@ -461,7 +461,7 @@ class WorkflowSchemaSpec extends AnyFlatSpec with Matchers {
       livenessProbe = Some(ProbeConfig(0, 1, 10, 3)),
     )
     val json = config.asJson
-    json.hcursor.downField("startupProbe").focus.isDefined shouldBe true
+    val _    = json.hcursor.downField("startupProbe").focus.isDefined shouldBe true
     json.hcursor.downField("livenessProbe").focus.isDefined shouldBe true
   }
 

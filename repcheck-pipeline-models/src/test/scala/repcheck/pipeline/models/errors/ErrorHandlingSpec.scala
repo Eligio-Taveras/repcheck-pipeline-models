@@ -44,8 +44,8 @@ class ErrorHandlingSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "parse from string case-insensitively" in {
-    ErrorClass.fromString("transient") shouldBe Right(ErrorClass.Transient)
-    ErrorClass.fromString("SYSTEMIC") shouldBe Right(ErrorClass.Systemic)
+    val _ = ErrorClass.fromString("transient") shouldBe Right(ErrorClass.Transient)
+    val _ = ErrorClass.fromString("SYSTEMIC") shouldBe Right(ErrorClass.Systemic)
     ErrorClass.fromString("Transient") shouldBe Right(ErrorClass.Transient)
   }
 
@@ -129,9 +129,9 @@ class ErrorHandlingSpec extends AnyFlatSpec with Matchers {
 
   "RetryConfig" should "have correct defaults" in {
     val config = RetryConfig()
-    config.maxRetries shouldBe 3
-    config.initialBackoffMs shouldBe 10L
-    config.maxBackoffMs shouldBe 60000L
+    val _      = config.maxRetries shouldBe 3
+    val _      = config.initialBackoffMs shouldBe 10L
+    val _      = config.maxBackoffMs shouldBe 60000L
     config.backoffMultiplier shouldBe 2.0
   }
 
@@ -178,9 +178,9 @@ class ErrorHandlingSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"originalPayload":"{\"k\":\"v\"}","eventType":"vote.recorded","failureReason":"timeout","failureTimestamp":"2024-06-01T12:00:00Z","retryCount":2}"""
     val result = decode[DeadLetterMessage](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { m =>
-      m.eventType shouldBe "vote.recorded"
+      val _ = m.eventType shouldBe "vote.recorded"
       m.retryCount shouldBe 2
     }
   }
@@ -205,10 +205,10 @@ class ErrorHandlingSpec extends AnyFlatSpec with Matchers {
     decoded.fold(
       _ => fail("decode failed"),
       { m =>
-        m.originalPayload shouldBe "payload"
-        m.eventType shouldBe "event.type"
-        m.failureReason shouldBe "reason"
-        m.failureTimestamp shouldBe ts
+        val _ = m.originalPayload shouldBe "payload"
+        val _ = m.eventType shouldBe "event.type"
+        val _ = m.failureReason shouldBe "reason"
+        val _ = m.failureTimestamp shouldBe ts
         m.retryCount shouldBe 5
       },
     )

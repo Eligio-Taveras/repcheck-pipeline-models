@@ -35,10 +35,10 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "decode all variants" in {
-    decode[WorkflowRunStatus]("\"Pending\"") shouldBe Right(WorkflowRunStatus.Pending)
-    decode[WorkflowRunStatus]("\"Running\"") shouldBe Right(WorkflowRunStatus.Running)
-    decode[WorkflowRunStatus]("\"Completed\"") shouldBe Right(WorkflowRunStatus.Completed)
-    decode[WorkflowRunStatus]("\"CompletedWithErrors\"") shouldBe Right(WorkflowRunStatus.CompletedWithErrors)
+    val _ = decode[WorkflowRunStatus]("\"Pending\"") shouldBe Right(WorkflowRunStatus.Pending)
+    val _ = decode[WorkflowRunStatus]("\"Running\"") shouldBe Right(WorkflowRunStatus.Running)
+    val _ = decode[WorkflowRunStatus]("\"Completed\"") shouldBe Right(WorkflowRunStatus.Completed)
+    val _ = decode[WorkflowRunStatus]("\"CompletedWithErrors\"") shouldBe Right(WorkflowRunStatus.CompletedWithErrors)
     decode[WorkflowRunStatus]("\"Failed\"") shouldBe Right(WorkflowRunStatus.Failed)
   }
 
@@ -50,16 +50,16 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
   // ── WorkflowStepStatus Circe ──
 
   "WorkflowStepStatus" should "encode all variants" in {
-    WorkflowStepStatus.Pending.asJson.noSpaces shouldBe "\"Pending\""
-    WorkflowStepStatus.Running.asJson.noSpaces shouldBe "\"Running\""
-    WorkflowStepStatus.Completed.asJson.noSpaces shouldBe "\"Completed\""
+    val _ = WorkflowStepStatus.Pending.asJson.noSpaces shouldBe "\"Pending\""
+    val _ = WorkflowStepStatus.Running.asJson.noSpaces shouldBe "\"Running\""
+    val _ = WorkflowStepStatus.Completed.asJson.noSpaces shouldBe "\"Completed\""
     WorkflowStepStatus.Failed.asJson.noSpaces shouldBe "\"Failed\""
   }
 
   it should "decode all variants" in {
-    decode[WorkflowStepStatus]("\"Pending\"") shouldBe Right(WorkflowStepStatus.Pending)
-    decode[WorkflowStepStatus]("\"Running\"") shouldBe Right(WorkflowStepStatus.Running)
-    decode[WorkflowStepStatus]("\"Completed\"") shouldBe Right(WorkflowStepStatus.Completed)
+    val _ = decode[WorkflowStepStatus]("\"Pending\"") shouldBe Right(WorkflowStepStatus.Pending)
+    val _ = decode[WorkflowStepStatus]("\"Running\"") shouldBe Right(WorkflowStepStatus.Running)
+    val _ = decode[WorkflowStepStatus]("\"Completed\"") shouldBe Right(WorkflowStepStatus.Completed)
     decode[WorkflowStepStatus]("\"Failed\"") shouldBe Right(WorkflowStepStatus.Failed)
   }
 
@@ -205,10 +205,10 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     val step   = failedStep(retryCount = 1, maxRetries = 3)
     val now    = Instant.parse("2024-06-02T08:00:00Z")
     val result = WorkflowRunStepDO.applyRetry(step, now)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { retried =>
-      retried.retryCount shouldBe 2
-      retried.status shouldBe WorkflowStepStatus.Running
+      val _ = retried.retryCount shouldBe 2
+      val _ = retried.status shouldBe WorkflowStepStatus.Running
       retried.updatedAt shouldBe now
     }
   }
@@ -217,18 +217,18 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     val step   = failedStep(retryCount = 3, maxRetries = 3)
     val now    = Instant.parse("2024-06-02T08:00:00Z")
     val result = WorkflowRunStepDO.applyRetry(step, now)
-    result.isLeft shouldBe true
+    val _      = result.isLeft shouldBe true
     result.left.foreach(msg => msg should include("exhausted retries"))
   }
 
   "Failed → Running transition" should "be valid when a failed step is retried" in {
-    val step = failedStep(retryCount = 1, maxRetries = 3)
-    step.status shouldBe WorkflowStepStatus.Failed
+    val step    = failedStep(retryCount = 1, maxRetries = 3)
+    val _       = step.status shouldBe WorkflowStepStatus.Failed
     val now     = Instant.parse("2024-06-02T08:00:00Z")
     val retried = WorkflowRunStepDO.applyRetry(step, now)
-    retried.isRight shouldBe true
+    val _       = retried.isRight shouldBe true
     retried.foreach { r =>
-      r.status shouldBe WorkflowStepStatus.Running
+      val _ = r.status shouldBe WorkflowStepStatus.Running
       r.retryCount shouldBe step.retryCount + 1
     }
   }
@@ -289,30 +289,30 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
   // ── Doobie instances compile check ──
 
   "Doobie instances" should "resolve Get/Put for WorkflowRunStatus" in {
-    implicitly[doobie.Get[WorkflowRunStatus]]
-    implicitly[doobie.Put[WorkflowRunStatus]]
+    val _ = implicitly[doobie.Get[WorkflowRunStatus]]
+    val _ = implicitly[doobie.Put[WorkflowRunStatus]]
     succeed
   }
 
   it should "resolve Get/Put for WorkflowStepStatus" in {
-    implicitly[doobie.Get[WorkflowStepStatus]]
-    implicitly[doobie.Put[WorkflowStepStatus]]
+    val _ = implicitly[doobie.Get[WorkflowStepStatus]]
+    val _ = implicitly[doobie.Put[WorkflowStepStatus]]
     succeed
   }
 
   it should "resolve Read/Write for WorkflowRunDO" in {
     import doobie.postgres.implicits._
 
-    implicitly[doobie.Read[WorkflowRunDO]]
-    implicitly[doobie.Write[WorkflowRunDO]]
+    val _ = implicitly[doobie.Read[WorkflowRunDO]]
+    val _ = implicitly[doobie.Write[WorkflowRunDO]]
     succeed
   }
 
   it should "resolve Read/Write for WorkflowRunStepDO" in {
     import doobie.postgres.implicits._
 
-    implicitly[doobie.Read[WorkflowRunStepDO]]
-    implicitly[doobie.Write[WorkflowRunStepDO]]
+    val _ = implicitly[doobie.Read[WorkflowRunStepDO]]
+    val _ = implicitly[doobie.Write[WorkflowRunStepDO]]
     succeed
   }
 

@@ -90,11 +90,11 @@ class LauncherTraitsSpec extends AnyFlatSpec with Matchers {
     val json =
       """{"stepName":"s","container":{"image":"img:v1","command":null,"args":[],"env":{},"secretMounts":{}},"resources":{"cpu":"2","memory":"1Gi","gpu":null},"execution":{"timeout":"15m","maxRetries":3,"taskCount":1,"parallelism":1},"networking":{"vpcConnector":null,"vpcEgress":null,"cloudSqlConnections":[]},"volumes":{"gcsVolumes":{},"inMemoryVolumes":{}},"identity":{"serviceAccount":"sa@p.iam"},"healthChecks":{"startupProbe":null,"livenessProbe":null},"metadata":{"labels":{},"annotations":{}}}"""
     val result = decode[ResolvedStepConfig](json)
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { c =>
-      c.stepName shouldBe "s"
-      c.container.image shouldBe "img:v1"
-      c.resources.cpu shouldBe "2"
+      val _ = c.stepName shouldBe "s"
+      val _ = c.container.image shouldBe "img:v1"
+      val _ = c.resources.cpu shouldBe "2"
       c.execution.maxRetries shouldBe 3
     }
   }

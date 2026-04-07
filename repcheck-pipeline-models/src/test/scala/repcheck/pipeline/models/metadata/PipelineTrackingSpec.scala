@@ -38,8 +38,8 @@ class PipelineTrackingSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "parse case-insensitively via fromString" in {
-    PipelineStatus.fromString("running") shouldBe Right(PipelineStatus.Running)
-    PipelineStatus.fromString("COMPLETED") shouldBe Right(PipelineStatus.Completed)
+    val _ = PipelineStatus.fromString("running") shouldBe Right(PipelineStatus.Running)
+    val _ = PipelineStatus.fromString("COMPLETED") shouldBe Right(PipelineStatus.Completed)
     PipelineStatus.fromString("completedwitherrors") shouldBe Right(PipelineStatus.CompletedWithErrors)
   }
 
@@ -69,8 +69,8 @@ class PipelineTrackingSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "parse case-insensitively via fromString" in {
-    ResultStatus.fromString("succeeded") shouldBe Right(ResultStatus.Succeeded)
-    ResultStatus.fromString("FAILED") shouldBe Right(ResultStatus.Failed)
+    val _ = ResultStatus.fromString("succeeded") shouldBe Right(ResultStatus.Succeeded)
+    val _ = ResultStatus.fromString("FAILED") shouldBe Right(ResultStatus.Failed)
     ResultStatus.fromString("Skipped") shouldBe Right(ResultStatus.Skipped)
   }
 
@@ -100,8 +100,8 @@ class PipelineTrackingSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "parse case-insensitively via fromString" in {
-    PipelineTrigger.fromString("scheduled") shouldBe Right(PipelineTrigger.Scheduled)
-    PipelineTrigger.fromString("MANUAL") shouldBe Right(PipelineTrigger.Manual)
+    val _ = PipelineTrigger.fromString("scheduled") shouldBe Right(PipelineTrigger.Scheduled)
+    val _ = PipelineTrigger.fromString("MANUAL") shouldBe Right(PipelineTrigger.Manual)
     PipelineTrigger.fromString("Event") shouldBe Right(PipelineTrigger.Event)
   }
 
@@ -283,36 +283,36 @@ class PipelineTrackingSpec extends AnyFlatSpec with Matchers {
   // ── Doobie instances compile check ──
 
   "Doobie instances" should "resolve Get/Put for PipelineStatus" in {
-    implicitly[doobie.Get[PipelineStatus]]
-    implicitly[doobie.Put[PipelineStatus]]
+    val _ = implicitly[doobie.Get[PipelineStatus]]
+    val _ = implicitly[doobie.Put[PipelineStatus]]
     succeed
   }
 
   it should "resolve Get/Put for ResultStatus" in {
-    implicitly[doobie.Get[ResultStatus]]
-    implicitly[doobie.Put[ResultStatus]]
+    val _ = implicitly[doobie.Get[ResultStatus]]
+    val _ = implicitly[doobie.Put[ResultStatus]]
     succeed
   }
 
   it should "resolve Get/Put for PipelineTrigger" in {
-    implicitly[doobie.Get[PipelineTrigger]]
-    implicitly[doobie.Put[PipelineTrigger]]
+    val _ = implicitly[doobie.Get[PipelineTrigger]]
+    val _ = implicitly[doobie.Put[PipelineTrigger]]
     succeed
   }
 
   it should "resolve Read/Write for PipelineRunDO" in {
     import doobie.postgres.implicits._
 
-    implicitly[doobie.Read[PipelineRunDO]]
-    implicitly[doobie.Write[PipelineRunDO]]
+    val _ = implicitly[doobie.Read[PipelineRunDO]]
+    val _ = implicitly[doobie.Write[PipelineRunDO]]
     succeed
   }
 
   it should "resolve Read/Write for ProcessingResultDO" in {
     import doobie.postgres.implicits._
 
-    implicitly[doobie.Read[ProcessingResultDO]]
-    implicitly[doobie.Write[ProcessingResultDO]]
+    val _ = implicitly[doobie.Read[ProcessingResultDO]]
+    val _ = implicitly[doobie.Write[ProcessingResultDO]]
     succeed
   }
 
