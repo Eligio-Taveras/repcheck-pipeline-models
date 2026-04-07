@@ -49,7 +49,7 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
       .attempt
       .unsafeRunSync()
 
-    result.isLeft shouldBe true
+    val _ = result.isLeft shouldBe true
     attemptCount.get.unsafeRunSync() shouldBe 4 // 1 initial + 3 retries
   }
 
@@ -75,7 +75,7 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
       )
       .unsafeRunSync()
 
-    result shouldBe "success"
+    val _ = result shouldBe "success"
     attemptCount.get.unsafeRunSync() shouldBe 2
   }
 
@@ -97,7 +97,7 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
       .attempt
       .unsafeRunSync()
 
-    result.isLeft shouldBe true
+    val _ = result.isLeft shouldBe true
     attemptCount.get.unsafeRunSync() shouldBe 1
   }
 
@@ -121,7 +121,7 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
       .attempt
       .unsafeRunSync()
 
-    result.isLeft shouldBe true
+    val _ = result.isLeft shouldBe true
     attemptCount.get.unsafeRunSync() shouldBe 1
   }
 
@@ -186,7 +186,7 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
 
     val operation = IO.raiseError[String](new RuntimeException("fail"))
 
-    wrapper
+    val _ = wrapper
       .withRetry(
         operation,
         config,
@@ -198,11 +198,11 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
       .unsafeRunSync()
 
     val entries = logEntries.get.unsafeRunSync()
-    entries.length shouldBe 2
+    val _       = entries.length shouldBe 2
     entries.foreach {
       case (_, maxR, _, ec, _, corrId) =>
-        maxR shouldBe 2
-        ec shouldBe ErrorClass.Transient
+        val _ = maxR shouldBe 2
+        val _ = ec shouldBe ErrorClass.Transient
         corrId shouldBe correlationId
     }
   }
@@ -221,7 +221,7 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
 
     val operation = IO.raiseError[String](new RuntimeException("fail"))
 
-    wrapper
+    val _ = wrapper
       .withRetry(
         operation,
         config,
@@ -233,16 +233,16 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
       .unsafeRunSync()
 
     val entries = logEntries.get.unsafeRunSync()
-    entries.length shouldBe 4
+    val _       = entries.length shouldBe 4
 
     // delay = min(10 * 2^attempt, 60000)
     // attempt 0: min(10 * 1, 60000) = 10
     // attempt 1: min(10 * 2, 60000) = 20
     // attempt 2: min(10 * 4, 60000) = 40
     // attempt 3: min(10 * 8, 60000) = 80
-    entries(0)._3 shouldBe 10L
-    entries(1)._3 shouldBe 20L
-    entries(2)._3 shouldBe 40L
+    val _ = entries(0)._3 shouldBe 10L
+    val _ = entries(1)._3 shouldBe 20L
+    val _ = entries(2)._3 shouldBe 40L
     entries(3)._3 shouldBe 80L
   }
 
@@ -258,7 +258,7 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
 
     val operation = IO.raiseError[String](new RuntimeException("fail"))
 
-    wrapper
+    val _ = wrapper
       .withRetry(
         operation,
         config,
@@ -292,7 +292,7 @@ class RetryWrapperSpec extends AnyFlatSpec with Matchers {
       )
       .unsafeRunSync()
 
-    result shouldBe "immediate success"
+    val _ = result shouldBe "immediate success"
     attemptCount.get.unsafeRunSync() shouldBe 1
   }
 

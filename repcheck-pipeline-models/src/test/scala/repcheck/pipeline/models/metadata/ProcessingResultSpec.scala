@@ -19,22 +19,22 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
 
   "ProcessingResult.Succeeded" should "report isSucceeded = true" in {
     val result = ProcessingResult.Succeeded("entity-1")
-    result.isSucceeded shouldBe true
-    result.isFailed shouldBe false
+    val _      = result.isSucceeded shouldBe true
+    val _      = result.isFailed shouldBe false
     result.isSkipped shouldBe false
   }
 
   "ProcessingResult.Failed" should "report isFailed = true" in {
     val result = ProcessingResult.Failed("entity-2", "timeout")
-    result.isSucceeded shouldBe false
-    result.isFailed shouldBe true
+    val _      = result.isSucceeded shouldBe false
+    val _      = result.isFailed shouldBe true
     result.isSkipped shouldBe false
   }
 
   "ProcessingResult.Skipped" should "report isSkipped = true" in {
     val result = ProcessingResult.Skipped("entity-3", "duplicate")
-    result.isSucceeded shouldBe false
-    result.isFailed shouldBe false
+    val _      = result.isSucceeded shouldBe false
+    val _      = result.isFailed shouldBe false
     result.isSkipped shouldBe true
   }
 
@@ -46,12 +46,12 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       .toResultDO[IO](testRunId, testCorrelationId, testEntityType)
       .unsafeRunSync()
 
-    resultDO.runId shouldBe testRunId
-    resultDO.correlationId shouldBe testCorrelationId
-    resultDO.entityType shouldBe testEntityType
-    resultDO.entityId shouldBe "entity-1"
-    resultDO.status shouldBe ResultStatus.Succeeded
-    resultDO.errorMessage shouldBe None
+    val _ = resultDO.runId shouldBe testRunId
+    val _ = resultDO.correlationId shouldBe testCorrelationId
+    val _ = resultDO.entityType shouldBe testEntityType
+    val _ = resultDO.entityId shouldBe "entity-1"
+    val _ = resultDO.status shouldBe ResultStatus.Succeeded
+    val _ = resultDO.errorMessage shouldBe None
     resultDO.errorClass shouldBe None
   }
 
@@ -61,12 +61,12 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       .toResultDO[IO](testRunId, testCorrelationId, testEntityType)
       .unsafeRunSync()
 
-    resultDO.runId shouldBe testRunId
-    resultDO.correlationId shouldBe testCorrelationId
-    resultDO.entityType shouldBe testEntityType
-    resultDO.entityId shouldBe "entity-2"
-    resultDO.status shouldBe ResultStatus.Failed
-    resultDO.errorMessage shouldBe Some("Connection refused")
+    val _ = resultDO.runId shouldBe testRunId
+    val _ = resultDO.correlationId shouldBe testCorrelationId
+    val _ = resultDO.entityType shouldBe testEntityType
+    val _ = resultDO.entityId shouldBe "entity-2"
+    val _ = resultDO.status shouldBe ResultStatus.Failed
+    val _ = resultDO.errorMessage shouldBe Some("Connection refused")
     resultDO.errorClass shouldBe Some("Systemic")
   }
 
@@ -76,8 +76,8 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       .toResultDO[IO](testRunId, testCorrelationId, testEntityType)
       .unsafeRunSync()
 
-    resultDO.status shouldBe ResultStatus.Failed
-    resultDO.errorMessage shouldBe Some("Rate limited")
+    val _ = resultDO.status shouldBe ResultStatus.Failed
+    val _ = resultDO.errorMessage shouldBe Some("Rate limited")
     resultDO.errorClass shouldBe Some("Transient")
   }
 
@@ -87,12 +87,12 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       .toResultDO[IO](testRunId, testCorrelationId, testEntityType)
       .unsafeRunSync()
 
-    resultDO.runId shouldBe testRunId
-    resultDO.correlationId shouldBe testCorrelationId
-    resultDO.entityType shouldBe testEntityType
-    resultDO.entityId shouldBe "entity-3"
-    resultDO.status shouldBe ResultStatus.Skipped
-    resultDO.errorMessage shouldBe Some("Already processed")
+    val _ = resultDO.runId shouldBe testRunId
+    val _ = resultDO.correlationId shouldBe testCorrelationId
+    val _ = resultDO.entityType shouldBe testEntityType
+    val _ = resultDO.entityId shouldBe "entity-3"
+    val _ = resultDO.status shouldBe ResultStatus.Skipped
+    val _ = resultDO.errorMessage shouldBe Some("Already processed")
     resultDO.errorClass shouldBe None
   }
 
@@ -108,9 +108,9 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       ProcessingResult.Succeeded("e3"),
     )
     val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
-    summary.status shouldBe PipelineStatus.Completed
-    summary.itemsProcessed shouldBe 3
-    summary.itemsSucceeded shouldBe 3
+    val _       = summary.status shouldBe PipelineStatus.Completed
+    val _       = summary.itemsProcessed shouldBe 3
+    val _       = summary.itemsSucceeded shouldBe 3
     summary.itemsFailed shouldBe 0
   }
 
@@ -121,9 +121,9 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       ProcessingResult.Succeeded("e3"),
     )
     val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
-    summary.status shouldBe PipelineStatus.CompletedWithErrors
-    summary.itemsProcessed shouldBe 3
-    summary.itemsSucceeded shouldBe 2
+    val _       = summary.status shouldBe PipelineStatus.CompletedWithErrors
+    val _       = summary.itemsProcessed shouldBe 3
+    val _       = summary.itemsSucceeded shouldBe 2
     summary.itemsFailed shouldBe 1
   }
 
@@ -133,18 +133,18 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       ProcessingResult.Failed("e2", "error B"),
     )
     val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
-    summary.status shouldBe PipelineStatus.Failed
-    summary.itemsProcessed shouldBe 2
-    summary.itemsSucceeded shouldBe 0
+    val _       = summary.status shouldBe PipelineStatus.Failed
+    val _       = summary.itemsProcessed shouldBe 2
+    val _       = summary.itemsSucceeded shouldBe 0
     summary.itemsFailed shouldBe 2
   }
 
   it should "derive Completed for empty results" in {
     val summary =
       PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, List.empty)
-    summary.status shouldBe PipelineStatus.Completed
-    summary.itemsProcessed shouldBe 0
-    summary.itemsSucceeded shouldBe 0
+    val _ = summary.status shouldBe PipelineStatus.Completed
+    val _ = summary.itemsProcessed shouldBe 0
+    val _ = summary.itemsSucceeded shouldBe 0
     summary.itemsFailed shouldBe 0
   }
 
@@ -164,9 +164,9 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       ProcessingResult.Skipped("e2", "duplicate"),
     )
     val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
-    summary.status shouldBe PipelineStatus.Completed
-    summary.itemsProcessed shouldBe 2
-    summary.itemsSucceeded shouldBe 1
+    val _       = summary.status shouldBe PipelineStatus.Completed
+    val _       = summary.itemsProcessed shouldBe 2
+    val _       = summary.itemsSucceeded shouldBe 1
     summary.itemsFailed shouldBe 0
   }
 

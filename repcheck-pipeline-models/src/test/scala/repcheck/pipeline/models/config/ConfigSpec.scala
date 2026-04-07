@@ -51,13 +51,13 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
 
   "VoteWeights defaults" should "have correct default values" in {
     val w = VoteWeights()
-    w.passage shouldBe 1.0
-    w.conferenceReport shouldBe 1.0
-    w.cloture shouldBe 0.8
-    w.vetoOverride shouldBe 0.9
-    w.amendment shouldBe 0.5
-    w.committee shouldBe 0.4
-    w.motionToRecommit shouldBe 0.6
+    val _ = w.passage shouldBe 1.0
+    val _ = w.conferenceReport shouldBe 1.0
+    val _ = w.cloture shouldBe 0.8
+    val _ = w.vetoOverride shouldBe 0.9
+    val _ = w.amendment shouldBe 0.5
+    val _ = w.committee shouldBe 0.4
+    val _ = w.motionToRecommit shouldBe 0.6
     w.other shouldBe 0.5
   }
 
@@ -115,11 +115,11 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
         |other = 0.3
         |""".stripMargin
     val result = ConfigSource.string(hocon).load[VoteWeights]
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { w =>
-      w.passage shouldBe 0.95
-      w.cloture shouldBe 0.7
-      w.other shouldBe 0.3
+      val _ = w.passage shouldBe 0.95
+      val _ = w.cloture shouldBe 0.7
+      val _ = w.other shouldBe 0.3
       w.conferenceReport shouldBe 1.0
     }
   }
@@ -128,9 +128,9 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
 
   "CommitteeAttributionWeights defaults" should "match CommitteePosition weights" in {
     val w = CommitteeAttributionWeights()
-    w.chairman shouldBe 1.0
-    w.rankingMember shouldBe 0.7
-    w.viceChairman shouldBe 0.6
+    val _ = w.chairman shouldBe 1.0
+    val _ = w.rankingMember shouldBe 0.7
+    val _ = w.viceChairman shouldBe 0.6
     w.member shouldBe 0.4
   }
 
@@ -150,11 +150,11 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
 
   "AnalysisPassConfig defaults" should "use haiku/sonnet/opus with all passes enabled" in {
     val c = AnalysisPassConfig()
-    c.pass1Model shouldBe "claude-3-haiku"
-    c.pass2Model shouldBe "claude-3-sonnet"
-    c.pass3Model shouldBe "claude-3-opus"
-    c.pass1Enabled shouldBe true
-    c.pass2Enabled shouldBe true
+    val _ = c.pass1Model shouldBe "claude-3-haiku"
+    val _ = c.pass2Model shouldBe "claude-3-sonnet"
+    val _ = c.pass3Model shouldBe "claude-3-opus"
+    val _ = c.pass1Enabled shouldBe true
+    val _ = c.pass2Enabled shouldBe true
     c.pass3Enabled shouldBe true
   }
 
@@ -169,10 +169,10 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
         |pass-3-enabled = true
         |""".stripMargin
     val result = ConfigSource.string(hocon).load[AnalysisPassConfig]
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { c =>
-      c.pass1Enabled shouldBe true
-      c.pass2Enabled shouldBe false
+      val _ = c.pass1Enabled shouldBe true
+      val _ = c.pass2Enabled shouldBe false
       c.pass3Enabled shouldBe true
     }
   }
@@ -182,12 +182,12 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
   "PipelineConfig[TestAppConfig]" should "load common fields with defaults" in {
     val hocon  = pipelineConfigHocon("x = 42")
     val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { pc =>
-      pc.parallelism shouldBe 4
-      pc.batchSize shouldBe 100
-      pc.pageSize shouldBe 250
-      pc.retry shouldBe RetryConfig()
+      val _ = pc.parallelism shouldBe 4
+      val _ = pc.batchSize shouldBe 100
+      val _ = pc.pageSize shouldBe 250
+      val _ = pc.retry shouldBe RetryConfig()
       pc.appConfig shouldBe TestAppConfig(42)
     }
   }
@@ -206,11 +206,11 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
          |}
          |""".stripMargin
     val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { pc =>
-      pc.parallelism shouldBe 8
-      pc.batchSize shouldBe 50
-      pc.pageSize shouldBe 500
+      val _ = pc.parallelism shouldBe 8
+      val _ = pc.batchSize shouldBe 50
+      val _ = pc.pageSize shouldBe 500
       pc.appConfig shouldBe TestAppConfig(7)
     }
   }
@@ -229,9 +229,9 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
          |}
          |""".stripMargin
     val result = ConfigSource.string(hocon).load[PipelineConfig[VoteWeights]]
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { pc =>
-      pc.parallelism shouldBe 4
+      val _ = pc.parallelism shouldBe 4
       pc.appConfig shouldBe VoteWeights()
     }
   }
@@ -253,11 +253,11 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
         |}
         |""".stripMargin
     val result = ConfigSource.string(hocon).load[PipelineConfig[TestAppConfig]]
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { pc =>
-      pc.retry.maxRetries shouldBe 5
-      pc.retry.initialBackoffMs shouldBe 20L
-      pc.retry.maxBackoffMs shouldBe 30000L
+      val _ = pc.retry.maxRetries shouldBe 5
+      val _ = pc.retry.initialBackoffMs shouldBe 20L
+      val _ = pc.retry.maxBackoffMs shouldBe 30000L
       pc.retry.backoffMultiplier shouldBe 3.0
     }
   }
@@ -284,10 +284,10 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
         |}
         |""".stripMargin
     val result = ConfigSource.string(hocon).load[PipelineConfig[AnalysisPassConfig]]
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach { pc =>
-      pc.parallelism shouldBe 2
-      pc.batchSize shouldBe 50
+      val _ = pc.parallelism shouldBe 2
+      val _ = pc.batchSize shouldBe 50
       pc.appConfig.pass3Enabled shouldBe false
     }
   }
@@ -312,7 +312,7 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
         |}
         |""".stripMargin
     val result = ConfigSource.string(hocon).load[PipelineConfig[CommitteeAttributionWeights]]
-    result.isRight shouldBe true
+    val _      = result.isRight shouldBe true
     result.foreach(pc => pc.appConfig.chairman shouldBe 1.0)
   }
 
@@ -325,9 +325,9 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
       appConfig = TestAppConfig(1),
     )
     val copied = pc.copy(parallelism = 16, batchSize = 200)
-    copied.parallelism shouldBe 16
-    copied.batchSize shouldBe 200
-    copied.pageSize shouldBe 250
+    val _      = copied.parallelism shouldBe 16
+    val _      = copied.batchSize shouldBe 200
+    val _      = copied.pageSize shouldBe 250
     copied.appConfig shouldBe TestAppConfig(1)
   }
 
@@ -335,14 +335,14 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
     val a = PipelineConfig[TestAppConfig](appConfig = TestAppConfig(1))
     val b = PipelineConfig[TestAppConfig](appConfig = TestAppConfig(1))
     val c = PipelineConfig[TestAppConfig](appConfig = TestAppConfig(2))
-    a shouldBe b
-    a should not be c
+    val _ = a shouldBe b
+    val _ = a should not be c
     a.hashCode shouldBe b.hashCode
   }
 
   it should "implement toString" in {
     val pc = PipelineConfig[TestAppConfig](appConfig = TestAppConfig(42))
-    pc.toString should include("42")
+    val _  = pc.toString should include("42")
     pc.toString should include("PipelineConfig")
   }
 

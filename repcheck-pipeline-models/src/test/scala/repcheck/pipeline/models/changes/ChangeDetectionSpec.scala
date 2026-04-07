@@ -96,51 +96,51 @@ class ChangeDetectionSpec extends AnyFlatSpec with Matchers {
   // ── EntityChangeConfig for each entity in rules table (7 tests) ──
 
   "EntityChangeConfig.BillMetadata" should "have correct strategy, persistence, and event" in {
-    EntityChangeConfig.BillMetadata.entityType shouldBe "bill_metadata"
-    EntityChangeConfig.BillMetadata.detectionStrategy shouldBe ChangeDetectionStrategy.UpdateDateComparison
-    EntityChangeConfig.BillMetadata.persistenceStrategy shouldBe PersistenceStrategy.Upsert
+    val _ = EntityChangeConfig.BillMetadata.entityType shouldBe "bill_metadata"
+    val _ = EntityChangeConfig.BillMetadata.detectionStrategy shouldBe ChangeDetectionStrategy.UpdateDateComparison
+    val _ = EntityChangeConfig.BillMetadata.persistenceStrategy shouldBe PersistenceStrategy.Upsert
     EntityChangeConfig.BillMetadata.eventType shouldBe None
   }
 
   "EntityChangeConfig.BillTextVersion" should "have correct strategy, persistence, and event" in {
-    EntityChangeConfig.BillTextVersion.entityType shouldBe "bill_text_version"
-    EntityChangeConfig.BillTextVersion.detectionStrategy shouldBe ChangeDetectionStrategy.UpdateDateComparison
-    EntityChangeConfig.BillTextVersion.persistenceStrategy shouldBe PersistenceStrategy.AppendOnly
+    val _ = EntityChangeConfig.BillTextVersion.entityType shouldBe "bill_text_version"
+    val _ = EntityChangeConfig.BillTextVersion.detectionStrategy shouldBe ChangeDetectionStrategy.UpdateDateComparison
+    val _ = EntityChangeConfig.BillTextVersion.persistenceStrategy shouldBe PersistenceStrategy.AppendOnly
     EntityChangeConfig.BillTextVersion.eventType shouldBe Some("bill.text.available")
   }
 
   "EntityChangeConfig.Vote" should "have correct strategy, persistence, and event" in {
-    EntityChangeConfig.Vote.entityType shouldBe "vote"
-    EntityChangeConfig.Vote.detectionStrategy shouldBe ChangeDetectionStrategy.UpdateDateComparison
-    EntityChangeConfig.Vote.persistenceStrategy shouldBe PersistenceStrategy.UpsertWithHistory
+    val _ = EntityChangeConfig.Vote.entityType shouldBe "vote"
+    val _ = EntityChangeConfig.Vote.detectionStrategy shouldBe ChangeDetectionStrategy.UpdateDateComparison
+    val _ = EntityChangeConfig.Vote.persistenceStrategy shouldBe PersistenceStrategy.UpsertWithHistory
     EntityChangeConfig.Vote.eventType shouldBe Some("vote.recorded")
   }
 
   "EntityChangeConfig.Member" should "have correct strategy, persistence, and event" in {
-    EntityChangeConfig.Member.entityType shouldBe "member"
-    EntityChangeConfig.Member.detectionStrategy shouldBe ChangeDetectionStrategy.FieldLevelDiff
-    EntityChangeConfig.Member.persistenceStrategy shouldBe PersistenceStrategy.Upsert
+    val _ = EntityChangeConfig.Member.entityType shouldBe "member"
+    val _ = EntityChangeConfig.Member.detectionStrategy shouldBe ChangeDetectionStrategy.FieldLevelDiff
+    val _ = EntityChangeConfig.Member.persistenceStrategy shouldBe PersistenceStrategy.Upsert
     EntityChangeConfig.Member.eventType shouldBe None
   }
 
   "EntityChangeConfig.Amendment" should "have correct strategy, persistence, and event" in {
-    EntityChangeConfig.Amendment.entityType shouldBe "amendment"
-    EntityChangeConfig.Amendment.detectionStrategy shouldBe ChangeDetectionStrategy.UpdateDateComparison
-    EntityChangeConfig.Amendment.persistenceStrategy shouldBe PersistenceStrategy.Upsert
+    val _ = EntityChangeConfig.Amendment.entityType shouldBe "amendment"
+    val _ = EntityChangeConfig.Amendment.detectionStrategy shouldBe ChangeDetectionStrategy.UpdateDateComparison
+    val _ = EntityChangeConfig.Amendment.persistenceStrategy shouldBe PersistenceStrategy.Upsert
     EntityChangeConfig.Amendment.eventType shouldBe None
   }
 
   "EntityChangeConfig.Analysis" should "have correct strategy, persistence, and event" in {
-    EntityChangeConfig.Analysis.entityType shouldBe "analysis"
-    EntityChangeConfig.Analysis.detectionStrategy shouldBe ChangeDetectionStrategy.AlwaysNew
-    EntityChangeConfig.Analysis.persistenceStrategy shouldBe PersistenceStrategy.AppendOnly
+    val _ = EntityChangeConfig.Analysis.entityType shouldBe "analysis"
+    val _ = EntityChangeConfig.Analysis.detectionStrategy shouldBe ChangeDetectionStrategy.AlwaysNew
+    val _ = EntityChangeConfig.Analysis.persistenceStrategy shouldBe PersistenceStrategy.AppendOnly
     EntityChangeConfig.Analysis.eventType shouldBe Some("analysis.completed")
   }
 
   "EntityChangeConfig.Score" should "have correct strategy, persistence, and event" in {
-    EntityChangeConfig.Score.entityType shouldBe "score"
-    EntityChangeConfig.Score.detectionStrategy shouldBe ChangeDetectionStrategy.AlwaysNew
-    EntityChangeConfig.Score.persistenceStrategy shouldBe PersistenceStrategy.Upsert
+    val _ = EntityChangeConfig.Score.entityType shouldBe "score"
+    val _ = EntityChangeConfig.Score.detectionStrategy shouldBe ChangeDetectionStrategy.AlwaysNew
+    val _ = EntityChangeConfig.Score.persistenceStrategy shouldBe PersistenceStrategy.Upsert
     EntityChangeConfig.Score.eventType shouldBe None
   }
 

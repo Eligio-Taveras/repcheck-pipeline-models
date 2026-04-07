@@ -11,7 +11,7 @@ ThisBuild / dynverSonatypeSnapshots := true
 
 lazy val commonSettings = Seq(
   organization := "com.repcheck",
-  scalaVersion := "3.4.1",
+  scalaVersion := "3.7.3",
   publishTo := Some(
     "GitHub Packages" at s"https://maven.pkg.github.com/Eligio-Taveras/repcheck-pipeline-models"
   ),
