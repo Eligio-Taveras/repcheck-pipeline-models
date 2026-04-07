@@ -301,7 +301,6 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "resolve Read/Write for WorkflowRunDO" in {
-    import doobie.implicits._
     import doobie.postgres.implicits._
 
     implicitly[doobie.Read[WorkflowRunDO]]
@@ -310,7 +309,6 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "resolve Read/Write for WorkflowRunStepDO" in {
-    import doobie.implicits._
     import doobie.postgres.implicits._
 
     implicitly[doobie.Read[WorkflowRunStepDO]]

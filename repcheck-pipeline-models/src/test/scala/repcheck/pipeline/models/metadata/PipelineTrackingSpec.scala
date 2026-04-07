@@ -301,7 +301,6 @@ class PipelineTrackingSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "resolve Read/Write for PipelineRunDO" in {
-    import doobie.implicits._
     import doobie.postgres.implicits._
 
     implicitly[doobie.Read[PipelineRunDO]]
@@ -310,7 +309,6 @@ class PipelineTrackingSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "resolve Read/Write for ProcessingResultDO" in {
-    import doobie.implicits._
     import doobie.postgres.implicits._
 
     implicitly[doobie.Read[ProcessingResultDO]]
