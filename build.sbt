@@ -2,6 +2,7 @@ import org.typelevel.scalacoptions.ScalacOption
 import sbt.Keys.libraryDependencies
 import sbt.Def
 import Dependencies.*
+import com.repcheck.sbt.ExceptionUniquenessPlugin.autoImport.exceptionUniquenessRootPackages
 
 val isScala212: Def.Initialize[Boolean] = Def.setting {
   VersionNumber(scalaVersion.value).matchesSemVer(SemanticSelector("2.12.x"))
@@ -68,6 +69,7 @@ lazy val root = (project in file("."))
   )
 
 lazy val repcheckPipelineModels = (project in file("repcheck-pipeline-models"))
+  .enablePlugins(com.repcheck.sbt.ExceptionUniquenessPlugin)
   .settings(
     commonSettings,
     name := "repcheck-pipeline-models",
@@ -75,7 +77,8 @@ lazy val repcheckPipelineModels = (project in file("repcheck-pipeline-models"))
     libraryDependencies += "com.h2database" % "h2" % "2.2.224" % Test,
     libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.2",
     // Circe semi-auto derivation for large case classes
-    scalacOptions += "-Xmax-inlines:64"
+    scalacOptions += "-Xmax-inlines:64",
+    exceptionUniquenessRootPackages := Seq("repcheck.pipeline")
   )
 
 lazy val docGenerator = (project in file("doc-generator"))
