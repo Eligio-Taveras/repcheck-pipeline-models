@@ -8,7 +8,7 @@
 | Bill Text Versions | AlloyDB | `bill_text_versions` | Immutable text versions with content and embeddings (pgvector) |
 | Members | AlloyDB | `members`, `member_terms`, `member_party_history` | Congressional metadata, terms, party affiliations |
 | Member History | AlloyDB | `member_history`, `member_term_history` | Archive-before-overwrite snapshots |
-| LIS Mapping | AlloyDB | `lis_member_mapping` | Senate LIS ID → bioguideId mapping from senator-lookup.xml |
+| LIS Mapping | AlloyDB | `lis_members`, `member_lis_mapping` | `lis_members` stores Senate LIS member records; `member_lis_mapping` maps LIS member IDs to `members.id` (bigint FK) |
 | Committees | AlloyDB | `committees`, `committee_members`, `bill_committee_referrals` | Committee membership from chamber XML feeds |
 | Votes | AlloyDB | `votes`, `vote_positions` | Congressional metadata, normalized positions |
 | Vote History | AlloyDB | `vote_history`, `vote_history_positions` | Archive-before-overwrite snapshots |

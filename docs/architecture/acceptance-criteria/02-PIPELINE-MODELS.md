@@ -72,7 +72,7 @@ Each launched application:
 
 ### Placeholder Entity Pattern
 
-When a pipeline ingests data referencing an entity that doesn't exist yet (e.g., a bill's `sponsorBioguideId` for a member we haven't ingested), it creates a **placeholder row** in the target entity's table with only the natural key populated (all other fields null/default). This ensures FK references are always valid. The owning pipeline (e.g., members-pipeline) fills in the full data later via normal upsert — the `ChangeDetector` (Component 3) diffs the placeholder against the full entity and updates all fields.
+When a pipeline ingests data referencing an entity that doesn't exist yet (e.g., a bill's `sponsorMemberId` for a member we haven't ingested), it creates a **placeholder row** in the target entity's table with only the natural key populated (all other fields null/default). This ensures FK references are always valid. The owning pipeline (e.g., members-pipeline) fills in the full data later via normal upsert — the `ChangeDetector` (Component 3) diffs the placeholder against the full entity and updates all fields.
 
 This pattern applies across all entity types and is implemented in `ingestion-common` (Component 3 §3.6).
 

@@ -24,7 +24,8 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     Tables.BillCommitteeReferrals,
     Tables.MemberHistory,
     Tables.MemberTermHistory,
-    Tables.LisMemberMapping,
+    Tables.LisMembers,
+    Tables.MemberLisMapping,
     Tables.BillTextSections,
     Tables.BillConceptGroups,
     Tables.BillConceptGroupSections,
@@ -65,7 +66,7 @@ class TablesSpec extends AnyFlatSpec with Matchers {
   )
 
   "Tables" should "have exactly 55 constants" in {
-    allTableNames.size shouldBe 55
+    allTableNames.size shouldBe 56
   }
 
   it should "have all non-empty table name values" in {
@@ -86,7 +87,8 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     val _ = Tables.Users shouldBe "users"
     val _ = Tables.PipelineRuns shouldBe "pipeline_runs"
     val _ = Tables.EventLog shouldBe "event_log"
-    Tables.LisMemberMapping shouldBe "lis_member_mapping"
+    val _ = Tables.LisMembers shouldBe "lis_members"
+    Tables.MemberLisMapping shouldBe "member_lis_mapping"
   }
 
   // ── PipelineEventTypes re-export verification ──

@@ -14,7 +14,8 @@ erDiagram
     SCORE }o--|| MEMBER : "scores"
 
     BILL {
-        string billId PK
+        bigint id PK
+        string naturalKey "congress-type-number"
         int congress
         string billType
         string title
@@ -27,7 +28,8 @@ erDiagram
     }
 
     MEMBER {
-        string memberId PK
+        bigint id PK
+        string naturalKey "bioguideId"
         string name
         string party
         string state
@@ -37,8 +39,9 @@ erDiagram
     }
 
     VOTE {
-        string voteId PK
-        string billId FK
+        bigint id PK
+        string naturalKey "congress-chamber-roll"
+        bigint billId FK
         string chamber
         datetime date
         string question
@@ -46,23 +49,24 @@ erDiagram
     }
 
     VOTE_POSITION {
-        string memberId FK
-        string voteId FK
+        bigint memberId FK
+        bigint voteId FK
         string position
     }
 
     AMENDMENT {
-        string amendmentId PK
-        string billId FK
-        string sponsor
+        bigint id PK
+        string naturalKey "congress-type-number"
+        bigint billId FK
+        bigint sponsorMemberId FK
         string description
         string status
         string textUrl
     }
 
     ANALYSIS {
-        string analysisId PK
-        string billId FK
+        bigint id PK
+        bigint billId FK
         string summary
         string[] topics
         map stanceByTopic
@@ -74,22 +78,22 @@ erDiagram
     }
 
     USER {
-        string userId PK
+        uuid userId PK
         string email
         string state
         string district
     }
 
     PREFERENCE {
-        string userId FK
+        uuid userId FK
         string topic
         string stance
         float priority
     }
 
     SCORE {
-        string userId FK
-        string memberId FK
+        uuid userId FK
+        bigint memberId FK
         float aggregateScore
         datetime computedAt
         string triggerEvent
