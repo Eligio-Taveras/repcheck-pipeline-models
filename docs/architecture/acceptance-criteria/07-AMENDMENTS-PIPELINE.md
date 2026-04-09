@@ -33,7 +33,7 @@ Cloud Scheduler
           +-- For each amendment: detect change via updateDate comparison
           +-- For changed amendments: fetch detail endpoint
           +-- Convert AmendmentDetailDTO.toDO -> AmendmentDO
-          +-- Create placeholder member for unknown sponsor (if sponsorBioguideId present)
+          +-- Create placeholder member for unknown sponsor (if sponsorMemberId present)
           +-- Create placeholder bill for amended bill (if billId present)
           +-- Upsert AmendmentDO to AlloyDB
 ```
@@ -78,7 +78,7 @@ When an amendment references entities not yet in the database:
 
 | Reference | Placeholder Type | Condition |
 |-----------|-----------------|-----------|
-| `sponsorBioguideId` | `MemberDO` placeholder | Only when `sponsorBioguideId` is `Some` — some amendments have no identified sponsor |
+| `sponsorMemberId` | `MemberDO` placeholder | Only when `sponsorMemberId` is `Some` — some amendments have no identified sponsor |
 | Amended bill | `BillDO` placeholder | Only when the amendment references a specific bill via `amendedBill` |
 
 Placeholders use `INSERT ... ON CONFLICT DO NOTHING` (Component 3 §3.6) — safe against concurrent ingestion by the bills or members pipeline.
