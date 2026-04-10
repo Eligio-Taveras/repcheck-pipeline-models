@@ -78,7 +78,7 @@ lazy val repcheckPipelineModels = (project in file("repcheck-pipeline-models"))
     libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.9",
     // Circe semi-auto derivation for large case classes
     scalacOptions += "-Xmax-inlines:64",
-    exceptionUniquenessRootPackages := Seq("repcheck.pipeline")
+    exceptionUniquenessRootPackages := Seq("com.repcheck", "repcheck")
   )
 
 lazy val docGenerator = (project in file("doc-generator"))
