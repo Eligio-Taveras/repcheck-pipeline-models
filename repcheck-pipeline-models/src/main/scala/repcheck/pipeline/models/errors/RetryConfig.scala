@@ -1,7 +1,6 @@
 package repcheck.pipeline.models.errors
 
 import pureconfig.ConfigReader
-import pureconfig.generic.derivation.default._
 
 final case class RetryConfig(
   maxRetries: Int = 3,

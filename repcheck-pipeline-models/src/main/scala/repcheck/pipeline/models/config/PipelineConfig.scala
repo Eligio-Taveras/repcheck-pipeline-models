@@ -1,7 +1,6 @@
 package repcheck.pipeline.models.config
 
 import pureconfig.ConfigReader
-import pureconfig.generic.derivation.default._
 
 import repcheck.pipeline.models.errors.RetryConfig
 

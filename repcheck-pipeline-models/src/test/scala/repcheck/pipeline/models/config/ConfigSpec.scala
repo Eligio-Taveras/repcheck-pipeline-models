@@ -1,6 +1,5 @@
 package repcheck.pipeline.models.config
 
-import pureconfig.generic.derivation.default._
 import pureconfig.{ConfigReader, ConfigSource}
 
 import org.scalatest.flatspec.AnyFlatSpec

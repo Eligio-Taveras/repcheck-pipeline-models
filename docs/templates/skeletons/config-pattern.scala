@@ -18,7 +18,6 @@
 package repcheck.config
 
 import pureconfig._
-import pureconfig.generic.derivation.default._
 
 import scala.concurrent.duration._
 
