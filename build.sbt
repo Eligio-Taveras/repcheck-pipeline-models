@@ -75,7 +75,7 @@ lazy val repcheckPipelineModels = (project in file("repcheck-pipeline-models"))
     name := "repcheck-pipeline-models",
     libraryDependencies ++= circe ++ pureConfig ++ fs2 ++ doobie ++ catsEffect ++ testDeps,
     libraryDependencies += "com.h2database" % "h2" % "2.2.224" % Test,
-    libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.2",
+    libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.9",
     // Circe semi-auto derivation for large case classes
     scalacOptions += "-Xmax-inlines:64",
     exceptionUniquenessRootPackages := Seq("repcheck.pipeline")
@@ -86,8 +86,8 @@ lazy val docGenerator = (project in file("doc-generator"))
     commonSettings,
     libraryDependencies ++= Seq(
       "com.anthropic" % "anthropic-java" % "2.18.0",
-      "org.typelevel" %% "cats-effect" % "3.5.4",
-      "ch.qos.logback" % "logback-classic" % "1.5.6"
+      "org.typelevel" %% "cats-effect" % "3.7.0",
+      "ch.qos.logback" % "logback-classic" % "1.5.32"
     ),
     // Exclude WartRemover for this utility project — uses Java SDK patterns
     wartremoverErrors := Seq.empty,
