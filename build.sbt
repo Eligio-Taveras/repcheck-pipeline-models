@@ -75,7 +75,7 @@ lazy val repcheckPipelineModels = (project in file("repcheck-pipeline-models"))
     name := "repcheck-pipeline-models",
     libraryDependencies ++= circe ++ pureConfig ++ fs2 ++ doobie ++ catsEffect ++ testDeps,
     libraryDependencies += "com.h2database" % "h2" % "2.2.224" % Test,
-    libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.9",
+    libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.15",
     // Circe semi-auto derivation for large case classes
     scalacOptions += "-Xmax-inlines:64",
     exceptionUniquenessRootPackages := Seq("com.repcheck", "repcheck")
