@@ -17,7 +17,7 @@ class MacroResolverSpec extends AnyFlatSpec with Matchers {
     runId = fixedId,
     timestamp = fixedTimestamp,
     date = fixedDate,
-    messagePayload = Map("billId" -> "hr-1", "congress" -> "118"),
+    messagePayload = Map("naturalKey" -> "hr-1", "congress" -> "118"),
   )
 
   "MacroResolver" should "replace {{run_id}} with the run ID" in {
@@ -35,8 +35,8 @@ class MacroResolverSpec extends AnyFlatSpec with Matchers {
     result shouldBe "ts=2024-06-15T10:30:00Z"
   }
 
-  it should "replace {{message.billId}} from payload map" in {
-    val result = MacroResolver.resolve("processing {{message.billId}}", context)
+  it should "replace {{message.naturalKey}} from payload map" in {
+    val result = MacroResolver.resolve("processing {{message.naturalKey}}", context)
     result shouldBe "processing hr-1"
   }
 
@@ -57,7 +57,7 @@ class MacroResolverSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "replace multiple macros in one template" in {
-    val template = "{{run_id}}/{{date}}/{{message.billId}}/{{message.congress}}"
+    val template = "{{run_id}}/{{date}}/{{message.naturalKey}}/{{message.congress}}"
     val result   = MacroResolver.resolve(template, context)
     result shouldBe s"$fixedId/2024-06-15/hr-1/118"
   }
