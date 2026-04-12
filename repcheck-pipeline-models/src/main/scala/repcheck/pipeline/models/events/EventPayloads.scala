@@ -26,7 +26,6 @@ final case class BillTextIngestedEvent(
   congress: Int,
   versionCode: String,
   previousVersionCode: Option[String],
-  committeeCode: Option[String],
 )
 
 object BillTextIngestedEvent {
