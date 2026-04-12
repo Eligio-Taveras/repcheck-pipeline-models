@@ -25,7 +25,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
 
   "BillTextIngestedEvent" should "round-trip through JSON" in {
     val versionId = UUID.randomUUID()
-    val event     = BillTextIngestedEvent("hr-1", versionId, 118, "ih", None, Some("HSAG"))
+    val event     = BillTextIngestedEvent("hr-1", versionId, 118, "ih", None)
     val json      = event.asJson.noSpaces
     val result    = decode[BillTextIngestedEvent](json)
     result shouldBe Right(event)
@@ -248,14 +248,13 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   "BillTextIngestedEvent decoder" should "decode from raw JSON string" in {
     val versionId = "550e8400-e29b-41d4-a716-446655440000"
     val json =
-      s"""{"billId":"hr-1","versionId":"$versionId","congress":118,"versionCode":"ih","previousVersionCode":null,"committeeCode":"HSAG"}"""
+      s"""{"billId":"hr-1","versionId":"$versionId","congress":118,"versionCode":"ih","previousVersionCode":null}"""
     val result = decode[BillTextIngestedEvent](json)
     val _      = result.isRight shouldBe true
     result.foreach { e =>
       val _ = e.billId shouldBe "hr-1"
       val _ = e.versionId shouldBe UUID.fromString(versionId)
-      val _ = e.previousVersionCode shouldBe None
-      e.committeeCode shouldBe Some("HSAG")
+      e.previousVersionCode shouldBe None
     }
   }
 
@@ -396,7 +395,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   }
 
   "BillTextIngestedEvent decodeAccumulating" should "decode valid JSON" in {
-    val event  = BillTextIngestedEvent("hr-1", UUID.randomUUID(), 118, "ih", None, Some("HSAG"))
+    val event  = BillTextIngestedEvent("hr-1", UUID.randomUUID(), 118, "ih", None)
     val json   = event.asJson
     val result = implicitly[io.circe.Decoder[BillTextIngestedEvent]].decodeAccumulating(json.hcursor)
     result.isValid shouldBe true
