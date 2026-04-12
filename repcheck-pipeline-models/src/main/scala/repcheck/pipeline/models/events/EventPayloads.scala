@@ -7,7 +7,7 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder}
 
 final case class BillTextAvailableEvent(
-  billId: String,
+  naturalKey: String,
   congress: Int,
   textUrl: String,
   textFormat: String,
@@ -21,7 +21,7 @@ object BillTextAvailableEvent {
 }
 
 final case class BillTextIngestedEvent(
-  billId: String,
+  naturalKey: String,
   versionId: UUID,
   congress: Int,
   versionCode: String,
@@ -34,7 +34,7 @@ object BillTextIngestedEvent {
 }
 
 final case class DecompositionCompletedEvent(
-  billId: String,
+  naturalKey: String,
   versionId: UUID,
   conceptGroupCount: Int,
   sectionCount: Int,
@@ -47,7 +47,7 @@ object DecompositionCompletedEvent {
 
 final case class VoteRecordedEvent(
   voteId: String,
-  billId: Option[String],
+  naturalKey: Option[String],
   chamber: String,
   date: Instant,
   congress: Int,
@@ -60,7 +60,7 @@ object VoteRecordedEvent {
 }
 
 final case class AnalysisCompletedEvent(
-  billId: String,
+  naturalKey: String,
   analysisId: UUID,
   topics: List[String],
   passesExecuted: List[Int],

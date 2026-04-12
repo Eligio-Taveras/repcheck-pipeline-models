@@ -109,12 +109,12 @@ class EventsSpec extends AnyFlatSpec with Matchers {
 
   // ── Optional field tests ──
 
-  "VoteRecordedEvent" should "serialize with None billId for procedural votes" in {
+  "VoteRecordedEvent" should "serialize with None naturalKey for procedural votes" in {
     val event   = VoteRecordedEvent("vote-proc-1", None, "Senate", Instant.parse("2024-03-10T14:00:00Z"), 118, false)
     val json    = event.asJson.noSpaces
     val decoded = decode[VoteRecordedEvent](json)
     val _       = decoded shouldBe Right(event)
-    decoded.fold(_ => fail("decode failed"), _.billId shouldBe None)
+    decoded.fold(_ => fail("decode failed"), _.naturalKey shouldBe None)
   }
 
   "BillTextAvailableEvent" should "serialize with None previousVersionCode for first version" in {
@@ -203,7 +203,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     val result = decode[BillTextAvailableEvent](json)
     val _      = result.isLeft shouldBe true
     result match {
-      case Left(err) => err.getMessage should include("billId")
+      case Left(err) => err.getMessage should include("naturalKey")
       case Right(_)  => fail("expected Left")
     }
   }
@@ -248,11 +248,11 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   "BillTextIngestedEvent decoder" should "decode from raw JSON string" in {
     val versionId = "550e8400-e29b-41d4-a716-446655440000"
     val json =
-      s"""{"billId":"hr-1","versionId":"$versionId","congress":118,"versionCode":"ih","previousVersionCode":null}"""
+      s"""{"naturalKey":"hr-1","versionId":"$versionId","congress":118,"versionCode":"ih","previousVersionCode":null}"""
     val result = decode[BillTextIngestedEvent](json)
     val _      = result.isRight shouldBe true
     result.foreach { e =>
-      val _ = e.billId shouldBe "hr-1"
+      val _ = e.naturalKey shouldBe "hr-1"
       val _ = e.versionId shouldBe UUID.fromString(versionId)
       e.previousVersionCode shouldBe None
     }
@@ -261,7 +261,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   "AnalysisCompletedEvent decoder" should "decode from raw JSON string" in {
     val analysisId = "550e8400-e29b-41d4-a716-446655440001"
     val json =
-      s"""{"billId":"s-42","analysisId":"$analysisId","topics":["tax","health"],"passesExecuted":[1,2],"modelUsed":"claude-3"}"""
+      s"""{"naturalKey":"s-42","analysisId":"$analysisId","topics":["tax","health"],"passesExecuted":[1,2],"modelUsed":"claude-3"}"""
     val result = decode[AnalysisCompletedEvent](json)
     val _      = result.isRight shouldBe true
     result.foreach { e =>
@@ -301,7 +301,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
 
   "DecompositionCompletedEvent decoder" should "decode from raw JSON string" in {
     val versionId = "550e8400-e29b-41d4-a716-446655440007"
-    val json      = s"""{"billId":"hr-99","versionId":"$versionId","conceptGroupCount":5,"sectionCount":12}"""
+    val json      = s"""{"naturalKey":"hr-99","versionId":"$versionId","conceptGroupCount":5,"sectionCount":12}"""
     val result    = decode[DecompositionCompletedEvent](json)
     val _         = result.isRight shouldBe true
     result.foreach { e =>
@@ -310,12 +310,12 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  "VoteRecordedEvent decoder" should "decode from raw JSON with billId = null" in {
+  "VoteRecordedEvent decoder" should "decode from raw JSON with naturalKey = null" in {
     val json =
-      """{"voteId":"v-1","billId":null,"chamber":"House","date":"2024-01-15T10:30:00Z","congress":118,"isUpdate":false}"""
+      """{"voteId":"v-1","naturalKey":null,"chamber":"House","date":"2024-01-15T10:30:00Z","congress":118,"isUpdate":false}"""
     val result = decode[VoteRecordedEvent](json)
     val _      = result.isRight shouldBe true
-    result.foreach(_.billId shouldBe None)
+    result.foreach(_.naturalKey shouldBe None)
   }
 
   "DailyIngestionStartEvent decoder" should "decode from raw JSON string" in {
@@ -389,7 +389,7 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "accumulate errors for invalid JSON" in {
-    val json   = io.circe.parser.parse("""{"billId":123}""").getOrElse(io.circe.Json.Null)
+    val json   = io.circe.parser.parse("""{"naturalKey":123}""").getOrElse(io.circe.Json.Null)
     val result = implicitly[io.circe.Decoder[BillTextAvailableEvent]].decodeAccumulating(json.hcursor)
     result.isInvalid shouldBe true
   }
