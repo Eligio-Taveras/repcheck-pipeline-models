@@ -333,16 +333,36 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
 
   "Doobie Get/Put for WorkflowRunStatus" should "round-trip all variants via H2" in {
     WorkflowRunStatus.values.foreach { status =>
-      val result = sql"SELECT ${status.toString}".query[WorkflowRunStatus].unique.transact(xa).unsafeRunSync()
+      val result = sql"SELECT ${status.label.toLowerCase}".query[WorkflowRunStatus].unique.transact(xa).unsafeRunSync()
       result shouldBe status
     }
   }
 
+  it should "exercise Put[WorkflowRunStatus] via H2 table" in {
+    val _ = sql"CREATE TABLE IF NOT EXISTS test_run_status(v OTHER)".update.run.transact(xa).unsafeRunSync()
+    val _ = sql"DELETE FROM test_run_status".update.run.transact(xa).unsafeRunSync()
+    WorkflowRunStatus.values.foreach { status =>
+      val _ = sql"INSERT INTO test_run_status(v) VALUES ($status)".update.run.transact(xa).unsafeRunSync()
+    }
+    val count = sql"SELECT COUNT(*) FROM test_run_status".query[Int].unique.transact(xa).unsafeRunSync()
+    count shouldBe WorkflowRunStatus.values.length
+  }
+
   "Doobie Get/Put for WorkflowStepStatus" should "round-trip all variants via H2" in {
     WorkflowStepStatus.values.foreach { status =>
-      val result = sql"SELECT ${status.toString}".query[WorkflowStepStatus].unique.transact(xa).unsafeRunSync()
+      val result = sql"SELECT ${status.label.toLowerCase}".query[WorkflowStepStatus].unique.transact(xa).unsafeRunSync()
       result shouldBe status
     }
+  }
+
+  it should "exercise Put[WorkflowStepStatus] via H2 table" in {
+    val _ = sql"CREATE TABLE IF NOT EXISTS test_step_status(v OTHER)".update.run.transact(xa).unsafeRunSync()
+    val _ = sql"DELETE FROM test_step_status".update.run.transact(xa).unsafeRunSync()
+    WorkflowStepStatus.values.foreach { status =>
+      val _ = sql"INSERT INTO test_step_status(v) VALUES ($status)".update.run.transact(xa).unsafeRunSync()
+    }
+    val count = sql"SELECT COUNT(*) FROM test_step_status".query[Int].unique.transact(xa).unsafeRunSync()
+    count shouldBe WorkflowStepStatus.values.length
   }
 
 }

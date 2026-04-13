@@ -35,9 +35,14 @@ object WorkflowStepStatus {
     fromString(str).left.map(_.getMessage)
   }
 
-  implicit val doobieGet: doobie.Get[WorkflowStepStatus] =
-    doobie.Get[String].temap(s => fromString(s).left.map(_.getMessage))
+  private val doobieMeta: doobie.Meta[WorkflowStepStatus] =
+    doobie.postgres.implicits.pgEnumStringOpt(
+      "workflow_status_type",
+      s => fromString(s).toOption,
+      _.label.toLowerCase,
+    )
 
-  implicit val doobiePut: doobie.Put[WorkflowStepStatus] = doobie.Put[String].contramap(_.toString)
+  implicit val doobieGet: doobie.Get[WorkflowStepStatus] = doobieMeta.get
+  implicit val doobiePut: doobie.Put[WorkflowStepStatus] = doobieMeta.put
 
 }
