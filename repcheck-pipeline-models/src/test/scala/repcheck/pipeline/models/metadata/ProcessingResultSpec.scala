@@ -8,10 +8,11 @@ import cats.effect.unsafe.implicits.global
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import repcheck.pipeline.models.workflow.state.WorkflowStepStatus
 
 class ProcessingResultSpec extends AnyFlatSpec with Matchers {
 
-  private val testRunId         = UUID.fromString("00000000-0000-0000-0000-000000000001")
+  private val testStepRunId     = 42L
   private val testCorrelationId = UUID.fromString("00000000-0000-0000-0000-000000000002")
   private val testEntityType    = "bill"
 
@@ -43,10 +44,10 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
   "ProcessingResult.Succeeded.toResultDO" should "produce correct DO fields" in {
     val result = ProcessingResult.Succeeded("entity-1", eventEmitted = true)
     val resultDO = result
-      .toResultDO[IO](testRunId, testCorrelationId, testEntityType)
+      .toResultDO[IO](testStepRunId, testCorrelationId, testEntityType)
       .unsafeRunSync()
 
-    val _ = resultDO.runId shouldBe testRunId
+    val _ = resultDO.stepRunId shouldBe testStepRunId
     val _ = resultDO.correlationId shouldBe testCorrelationId
     val _ = resultDO.entityType shouldBe testEntityType
     val _ = resultDO.entityId shouldBe "entity-1"
@@ -58,10 +59,10 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
   "ProcessingResult.Failed.toResultDO" should "produce correct DO fields" in {
     val result = ProcessingResult.Failed("entity-2", "Connection refused")
     val resultDO = result
-      .toResultDO[IO](testRunId, testCorrelationId, testEntityType)
+      .toResultDO[IO](testStepRunId, testCorrelationId, testEntityType)
       .unsafeRunSync()
 
-    val _ = resultDO.runId shouldBe testRunId
+    val _ = resultDO.stepRunId shouldBe testStepRunId
     val _ = resultDO.correlationId shouldBe testCorrelationId
     val _ = resultDO.entityType shouldBe testEntityType
     val _ = resultDO.entityId shouldBe "entity-2"
@@ -73,7 +74,7 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
   "ProcessingResult.Failed.toResultDO" should "use custom errorClass when provided" in {
     val result = ProcessingResult.Failed("entity-4", "Rate limited", errorClass = "Transient")
     val resultDO = result
-      .toResultDO[IO](testRunId, testCorrelationId, testEntityType)
+      .toResultDO[IO](testStepRunId, testCorrelationId, testEntityType)
       .unsafeRunSync()
 
     val _ = resultDO.status shouldBe ResultStatus.Failed
@@ -84,10 +85,10 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
   "ProcessingResult.Skipped.toResultDO" should "produce correct DO fields" in {
     val result = ProcessingResult.Skipped("entity-3", "Already processed")
     val resultDO = result
-      .toResultDO[IO](testRunId, testCorrelationId, testEntityType)
+      .toResultDO[IO](testStepRunId, testCorrelationId, testEntityType)
       .unsafeRunSync()
 
-    val _ = resultDO.runId shouldBe testRunId
+    val _ = resultDO.stepRunId shouldBe testStepRunId
     val _ = resultDO.correlationId shouldBe testCorrelationId
     val _ = resultDO.entityType shouldBe testEntityType
     val _ = resultDO.entityId shouldBe "entity-3"
@@ -96,19 +97,19 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
     resultDO.errorClass shouldBe None
   }
 
-  // ── PipelineRunSummary.fromResults status derivation ──
+  // ── StepRunSummary.fromResults status derivation ──
 
   private val now       = Instant.parse("2024-06-01T10:00:00Z")
   private val completed = Instant.parse("2024-06-01T10:30:00Z")
 
-  "PipelineRunSummary.fromResults" should "derive Completed when all results succeeded" in {
+  "StepRunSummary.fromResults" should "derive Completed when all results succeeded" in {
     val results = List(
       ProcessingResult.Succeeded("e1"),
       ProcessingResult.Succeeded("e2"),
       ProcessingResult.Succeeded("e3"),
     )
-    val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
-    val _       = summary.status shouldBe PipelineStatus.Completed
+    val summary = StepRunSummary.fromResults(testStepRunId, "bills-pipeline", now, completed, results)
+    val _       = summary.status shouldBe WorkflowStepStatus.Completed
     val _       = summary.itemsProcessed shouldBe 3
     val _       = summary.itemsSucceeded shouldBe 3
     summary.itemsFailed shouldBe 0
@@ -120,8 +121,8 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       ProcessingResult.Failed("e2", "timeout"),
       ProcessingResult.Succeeded("e3"),
     )
-    val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
-    val _       = summary.status shouldBe PipelineStatus.CompletedWithErrors
+    val summary = StepRunSummary.fromResults(testStepRunId, "bills-pipeline", now, completed, results)
+    val _       = summary.status shouldBe WorkflowStepStatus.CompletedWithErrors
     val _       = summary.itemsProcessed shouldBe 3
     val _       = summary.itemsSucceeded shouldBe 2
     summary.itemsFailed shouldBe 1
@@ -132,8 +133,8 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       ProcessingResult.Failed("e1", "error A"),
       ProcessingResult.Failed("e2", "error B"),
     )
-    val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
-    val _       = summary.status shouldBe PipelineStatus.Failed
+    val summary = StepRunSummary.fromResults(testStepRunId, "bills-pipeline", now, completed, results)
+    val _       = summary.status shouldBe WorkflowStepStatus.Failed
     val _       = summary.itemsProcessed shouldBe 2
     val _       = summary.itemsSucceeded shouldBe 0
     summary.itemsFailed shouldBe 2
@@ -141,8 +142,8 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
 
   it should "derive Completed for empty results" in {
     val summary =
-      PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, List.empty)
-    val _ = summary.status shouldBe PipelineStatus.Completed
+      StepRunSummary.fromResults(testStepRunId, "bills-pipeline", now, completed, List.empty)
+    val _ = summary.status shouldBe WorkflowStepStatus.Completed
     val _ = summary.itemsProcessed shouldBe 0
     val _ = summary.itemsSucceeded shouldBe 0
     summary.itemsFailed shouldBe 0
@@ -154,7 +155,7 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       ProcessingResult.Failed("e2", "timeout"),
       ProcessingResult.Failed("e3", "auth failure"),
     )
-    val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
+    val summary = StepRunSummary.fromResults(testStepRunId, "bills-pipeline", now, completed, results)
     summary.errorCounts shouldBe Map("timeout" -> 2, "auth failure" -> 1)
   }
 
@@ -163,8 +164,8 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
       ProcessingResult.Succeeded("e1"),
       ProcessingResult.Skipped("e2", "duplicate"),
     )
-    val summary = PipelineRunSummary.fromResults(testRunId, "test-pipeline", now, completed, results)
-    val _       = summary.status shouldBe PipelineStatus.Completed
+    val summary = StepRunSummary.fromResults(testStepRunId, "bills-pipeline", now, completed, results)
+    val _       = summary.status shouldBe WorkflowStepStatus.Completed
     val _       = summary.itemsProcessed shouldBe 2
     val _       = summary.itemsSucceeded shouldBe 1
     summary.itemsFailed shouldBe 0

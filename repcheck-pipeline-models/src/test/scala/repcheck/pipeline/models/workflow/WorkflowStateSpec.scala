@@ -1,7 +1,6 @@
 package repcheck.pipeline.models.workflow
 
 import java.time.Instant
-import java.util.UUID
 
 import io.circe.parser.decode
 import io.circe.syntax._
@@ -53,6 +52,7 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     val _ = WorkflowStepStatus.Pending.asJson.noSpaces shouldBe "\"Pending\""
     val _ = WorkflowStepStatus.Running.asJson.noSpaces shouldBe "\"Running\""
     val _ = WorkflowStepStatus.Completed.asJson.noSpaces shouldBe "\"Completed\""
+    val _ = WorkflowStepStatus.CompletedWithErrors.asJson.noSpaces shouldBe "\"CompletedWithErrors\""
     WorkflowStepStatus.Failed.asJson.noSpaces shouldBe "\"Failed\""
   }
 
@@ -60,6 +60,7 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     val _ = decode[WorkflowStepStatus]("\"Pending\"") shouldBe Right(WorkflowStepStatus.Pending)
     val _ = decode[WorkflowStepStatus]("\"Running\"") shouldBe Right(WorkflowStepStatus.Running)
     val _ = decode[WorkflowStepStatus]("\"Completed\"") shouldBe Right(WorkflowStepStatus.Completed)
+    val _ = decode[WorkflowStepStatus]("\"CompletedWithErrors\"") shouldBe Right(WorkflowStepStatus.CompletedWithErrors)
     decode[WorkflowStepStatus]("\"Failed\"") shouldBe Right(WorkflowStepStatus.Failed)
   }
 
@@ -99,13 +100,32 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     WorkflowRunStatus.deriveFromSteps(List.empty) shouldBe WorkflowRunStatus.Pending
   }
 
+  it should "return Failed for mix of Failed and Pending" in {
+    val statuses = List(WorkflowStepStatus.Failed, WorkflowStepStatus.Pending, WorkflowStepStatus.Failed)
+    WorkflowRunStatus.deriveFromSteps(statuses) shouldBe WorkflowRunStatus.Failed
+  }
+
+  it should "return Running for Completed + Pending (no Running/Failed)" in {
+    val statuses = List(WorkflowStepStatus.Completed, WorkflowStepStatus.Pending)
+    WorkflowRunStatus.deriveFromSteps(statuses) shouldBe WorkflowRunStatus.Running
+  }
+
+  it should "return CompletedWithErrors for CompletedWithErrors + Completed" in {
+    val statuses = List(WorkflowStepStatus.CompletedWithErrors, WorkflowStepStatus.Completed)
+    WorkflowRunStatus.deriveFromSteps(statuses) shouldBe WorkflowRunStatus.CompletedWithErrors
+  }
+
+  it should "return CompletedWithErrors for CompletedWithErrors + Failed" in {
+    val statuses = List(WorkflowStepStatus.CompletedWithErrors, WorkflowStepStatus.Failed)
+    WorkflowRunStatus.deriveFromSteps(statuses) shouldBe WorkflowRunStatus.CompletedWithErrors
+  }
+
   // ── WorkflowRunDO Circe round-trip ──
 
   "WorkflowRunDO" should "round-trip through JSON" in {
-    val runId = UUID.randomUUID()
-    val now   = Instant.parse("2024-06-01T12:00:00Z")
+    val now = Instant.parse("2024-06-01T12:00:00Z")
     val dobj = WorkflowRunDO(
-      workflowRunId = runId,
+      id = 42L,
       workflowName = "daily-ingestion",
       workflowDefinitionPath = "gs://bucket/workflows/daily-ingestion.json",
       status = WorkflowRunStatus.Running,
@@ -122,14 +142,15 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
   // ── WorkflowRunStepDO Circe round-trip ──
 
   "WorkflowRunStepDO" should "round-trip through JSON with originalMessage" in {
-    val runId      = UUID.randomUUID()
-    val pipelineId = UUID.randomUUID()
-    val now        = Instant.parse("2024-06-01T12:00:00Z")
+    val now = Instant.parse("2024-06-01T12:00:00Z")
     val dobj = WorkflowRunStepDO(
-      workflowRunId = runId,
-      stepName = "ingest-bills",
+      id = 1L,
+      workflowRunId = 42L,
+      stepName = "bills-pipeline",
       status = WorkflowStepStatus.Completed,
-      pipelineRunId = Some(pipelineId),
+      itemsProcessed = 100,
+      itemsSucceeded = 95,
+      itemsFailed = 5,
       retryCount = 1,
       maxRetries = 3,
       originalMessage = Some("""{"naturalKey":"hr-1"}"""),
@@ -144,14 +165,16 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     result shouldBe Right(dobj)
   }
 
-  it should "round-trip through JSON with pipelineRunId = None" in {
-    val runId = UUID.randomUUID()
-    val now   = Instant.parse("2024-06-01T12:00:00Z")
+  it should "round-trip through JSON with default item counts" in {
+    val now = Instant.parse("2024-06-01T12:00:00Z")
     val dobj = WorkflowRunStepDO(
-      workflowRunId = runId,
+      id = 2L,
+      workflowRunId = 42L,
       stepName = "pending-step",
       status = WorkflowStepStatus.Pending,
-      pipelineRunId = None,
+      itemsProcessed = 0,
+      itemsSucceeded = 0,
+      itemsFailed = 0,
       retryCount = 0,
       maxRetries = 3,
       originalMessage = None,
@@ -166,15 +189,18 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     result shouldBe Right(dobj)
   }
 
-  // ── Retry logic (criteria 19-21) ──
+  // ── Retry logic ──
 
   private def failedStep(retryCount: Int, maxRetries: Int): WorkflowRunStepDO = {
     val now = Instant.parse("2024-06-01T12:00:00Z")
     WorkflowRunStepDO(
-      workflowRunId = UUID.randomUUID(),
+      id = 1L,
+      workflowRunId = 42L,
       stepName = "test-step",
       status = WorkflowStepStatus.Failed,
-      pipelineRunId = None,
+      itemsProcessed = 10,
+      itemsSucceeded = 5,
+      itemsFailed = 5,
       retryCount = retryCount,
       maxRetries = maxRetries,
       originalMessage = Some("""{"naturalKey":"hr-1"}"""),
@@ -236,10 +262,9 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
   // ── decodeAccumulating coverage ──
 
   "WorkflowRunDO decodeAccumulating" should "decode valid JSON" in {
-    val runId = UUID.randomUUID()
-    val now   = Instant.parse("2024-06-01T12:00:00Z")
+    val now = Instant.parse("2024-06-01T12:00:00Z")
     val dobj = WorkflowRunDO(
-      workflowRunId = runId,
+      id = 42L,
       workflowName = "test",
       workflowDefinitionPath = "gs://bucket/wf.json",
       status = WorkflowRunStatus.Running,
@@ -256,10 +281,13 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
   "WorkflowRunStepDO decodeAccumulating" should "decode valid JSON" in {
     val now = Instant.parse("2024-06-01T12:00:00Z")
     val dobj = WorkflowRunStepDO(
-      workflowRunId = UUID.randomUUID(),
+      id = 1L,
+      workflowRunId = 42L,
       stepName = "step-a",
       status = WorkflowStepStatus.Completed,
-      pipelineRunId = None,
+      itemsProcessed = 10,
+      itemsSucceeded = 10,
+      itemsFailed = 0,
       retryCount = 0,
       maxRetries = 3,
       originalMessage = None,
@@ -272,18 +300,6 @@ class WorkflowStateSpec extends AnyFlatSpec with Matchers {
     val json   = dobj.asJson
     val result = implicitly[io.circe.Decoder[WorkflowRunStepDO]].decodeAccumulating(json.hcursor)
     result.isValid shouldBe true
-  }
-
-  // ── deriveFromSteps additional branch: Failed + Pending ──
-
-  "WorkflowRunStatus.deriveFromSteps" should "return Failed for mix of Failed and Pending" in {
-    val statuses = List(WorkflowStepStatus.Failed, WorkflowStepStatus.Pending, WorkflowStepStatus.Failed)
-    WorkflowRunStatus.deriveFromSteps(statuses) shouldBe WorkflowRunStatus.Failed
-  }
-
-  it should "return Running for Completed + Pending (no Running/Failed)" in {
-    val statuses = List(WorkflowStepStatus.Completed, WorkflowStepStatus.Pending)
-    WorkflowRunStatus.deriveFromSteps(statuses) shouldBe WorkflowRunStatus.Running
   }
 
   // ── Doobie instances compile check ──

@@ -1,15 +1,16 @@
 package repcheck.pipeline.models.metadata
 
 import java.time.Instant
-import java.util.UUID
 
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder}
 
-final case class PipelineRunSummary(
-  runId: UUID,
-  pipelineName: String,
-  status: PipelineStatus,
+import repcheck.pipeline.models.workflow.state.WorkflowStepStatus
+
+final case class StepRunSummary(
+  stepRunId: Long,
+  stepName: String,
+  status: WorkflowStepStatus,
   startedAt: Instant,
   completedAt: Instant,
   itemsProcessed: Int,
@@ -18,30 +19,30 @@ final case class PipelineRunSummary(
   errorCounts: Map[String, Int],
 )
 
-object PipelineRunSummary {
+object StepRunSummary {
 
-  implicit val encoder: Encoder[PipelineRunSummary] = deriveEncoder[PipelineRunSummary]
-  implicit val decoder: Decoder[PipelineRunSummary] = deriveDecoder[PipelineRunSummary]
+  implicit val encoder: Encoder[StepRunSummary] = deriveEncoder[StepRunSummary]
+  implicit val decoder: Decoder[StepRunSummary] = deriveDecoder[StepRunSummary]
 
   def fromResults(
-    runId: UUID,
-    pipelineName: String,
+    stepRunId: Long,
+    stepName: String,
     startedAt: Instant,
     completedAt: Instant,
     results: List[ProcessingResult],
-  ): PipelineRunSummary = {
+  ): StepRunSummary = {
     val succeeded = results.count(_.isSucceeded)
     val failed    = results.count(_.isFailed)
 
-    val status: PipelineStatus =
+    val status: WorkflowStepStatus =
       if (results.isEmpty) {
-        PipelineStatus.Completed
+        WorkflowStepStatus.Completed
       } else if (failed == results.length) {
-        PipelineStatus.Failed
+        WorkflowStepStatus.Failed
       } else if (failed > 0) {
-        PipelineStatus.CompletedWithErrors
+        WorkflowStepStatus.CompletedWithErrors
       } else {
-        PipelineStatus.Completed
+        WorkflowStepStatus.Completed
       }
 
     val errorCounts: Map[String, Int] = results
@@ -55,9 +56,9 @@ object PipelineRunSummary {
           (reason, occurrences.length)
       }
 
-    PipelineRunSummary(
-      runId = runId,
-      pipelineName = pipelineName,
+    StepRunSummary(
+      stepRunId = stepRunId,
+      stepName = stepName,
       status = status,
       startedAt = startedAt,
       completedAt = completedAt,

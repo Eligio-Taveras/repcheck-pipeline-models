@@ -57,7 +57,6 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     Tables.UserBillAlignments,
     Tables.UserAmendmentAlignments,
     Tables.StanceMaterializationStatus,
-    Tables.PipelineRuns,
     Tables.ProcessingResults,
     Tables.WorkflowRuns,
     Tables.WorkflowRunSteps,
@@ -66,7 +65,7 @@ class TablesSpec extends AnyFlatSpec with Matchers {
   )
 
   "Tables" should "have exactly 55 constants" in {
-    allTableNames.size shouldBe 56
+    allTableNames.size shouldBe 55
   }
 
   it should "have all non-empty table name values" in {
@@ -85,10 +84,49 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     val _ = Tables.Committees shouldBe "committees"
     val _ = Tables.Scores shouldBe "scores"
     val _ = Tables.Users shouldBe "users"
-    val _ = Tables.PipelineRuns shouldBe "pipeline_runs"
+    val _ = Tables.ProcessingResults shouldBe "processing_results"
+    val _ = Tables.WorkflowRuns shouldBe "workflow_runs"
+    val _ = Tables.WorkflowRunSteps shouldBe "workflow_run_steps"
     val _ = Tables.EventLog shouldBe "event_log"
     val _ = Tables.LisMembers shouldBe "lis_members"
     Tables.MemberLisMapping shouldBe "member_lis_mapping"
+  }
+
+  // ── Pipelines constants ──
+
+  private val allPipelineNames: List[String] = List(
+    Pipelines.Bills,
+    Pipelines.Members,
+    Pipelines.Votes,
+    Pipelines.Amendments,
+    Pipelines.LlmBillAnalysis,
+    Pipelines.MemberProfiling,
+    Pipelines.UserScoring,
+  )
+
+  "Pipelines" should "have exactly 7 constants" in {
+    allPipelineNames.size shouldBe 7
+  }
+
+  it should "have all non-empty values ending in '-pipeline'" in {
+    allPipelineNames.foreach { name =>
+      val _ = name.nonEmpty shouldBe true
+      name should endWith("-pipeline")
+    }
+  }
+
+  it should "have no duplicate pipeline name values" in {
+    allPipelineNames.distinct.size shouldBe allPipelineNames.size
+  }
+
+  it should "match expected pipeline identity values" in {
+    val _ = Pipelines.Bills shouldBe "bills-pipeline"
+    val _ = Pipelines.Members shouldBe "members-pipeline"
+    val _ = Pipelines.Votes shouldBe "votes-pipeline"
+    val _ = Pipelines.Amendments shouldBe "amendments-pipeline"
+    val _ = Pipelines.LlmBillAnalysis shouldBe "llm-bill-analysis-pipeline"
+    val _ = Pipelines.MemberProfiling shouldBe "member-profiling-pipeline"
+    Pipelines.UserScoring shouldBe "user-scoring-pipeline"
   }
 
   // ── PipelineEventTypes re-export verification ──

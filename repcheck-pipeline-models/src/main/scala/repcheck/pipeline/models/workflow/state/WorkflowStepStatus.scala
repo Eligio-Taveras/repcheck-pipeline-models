@@ -4,23 +4,25 @@ import io.circe.{Decoder, Encoder}
 
 final case class UnrecognizedWorkflowStepStatus(value: String)
     extends Exception(
-      s"Unrecognized WorkflowStepStatus: '$value'. Valid values: Pending, Running, Completed, Failed"
+      s"Unrecognized WorkflowStepStatus: '$value'. Valid values: Pending, Running, Completed, CompletedWithErrors, Failed"
     )
 
 enum WorkflowStepStatus(val label: String) {
-  case Pending   extends WorkflowStepStatus("Pending")
-  case Running   extends WorkflowStepStatus("Running")
-  case Completed extends WorkflowStepStatus("Completed")
-  case Failed    extends WorkflowStepStatus("Failed")
+  case Pending             extends WorkflowStepStatus("Pending")
+  case Running             extends WorkflowStepStatus("Running")
+  case Completed           extends WorkflowStepStatus("Completed")
+  case CompletedWithErrors extends WorkflowStepStatus("CompletedWithErrors")
+  case Failed              extends WorkflowStepStatus("Failed")
 }
 
 object WorkflowStepStatus {
 
   private val aliases: Map[String, WorkflowStepStatus] = Map(
-    "PENDING"   -> WorkflowStepStatus.Pending,
-    "RUNNING"   -> WorkflowStepStatus.Running,
-    "COMPLETED" -> WorkflowStepStatus.Completed,
-    "FAILED"    -> WorkflowStepStatus.Failed,
+    "PENDING"             -> WorkflowStepStatus.Pending,
+    "RUNNING"             -> WorkflowStepStatus.Running,
+    "COMPLETED"           -> WorkflowStepStatus.Completed,
+    "COMPLETEDWITHERRORS" -> WorkflowStepStatus.CompletedWithErrors,
+    "FAILED"              -> WorkflowStepStatus.Failed,
   )
 
   def fromString(value: String): Either[UnrecognizedWorkflowStepStatus, WorkflowStepStatus] =

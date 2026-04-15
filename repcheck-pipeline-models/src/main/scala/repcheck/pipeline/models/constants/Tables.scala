@@ -51,7 +51,6 @@ object Tables {
   val UserBillAlignments: String          = "user_bill_alignments"
   val UserAmendmentAlignments: String     = "user_amendment_alignments"
   val StanceMaterializationStatus: String = "stance_materialization_status"
-  val PipelineRuns: String                = "pipeline_runs"
   val ProcessingResults: String           = "processing_results"
   val WorkflowRuns: String                = "workflow_runs"
   val WorkflowRunSteps: String            = "workflow_run_steps"

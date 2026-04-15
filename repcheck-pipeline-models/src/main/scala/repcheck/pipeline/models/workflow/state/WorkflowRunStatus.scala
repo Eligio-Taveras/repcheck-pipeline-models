@@ -40,14 +40,14 @@ object WorkflowRunStatus {
       WorkflowRunStatus.Completed
     } else if (stepStatuses.forall(_ == WorkflowStepStatus.Pending)) {
       WorkflowRunStatus.Pending
-    } else if (
-      stepStatuses.exists(_ == WorkflowStepStatus.Completed) && stepStatuses.exists(_ == WorkflowStepStatus.Failed)
-    ) {
-      WorkflowRunStatus.CompletedWithErrors
     } else if (stepStatuses.filterNot(_ == WorkflowStepStatus.Pending).forall(_ == WorkflowStepStatus.Failed)) {
       WorkflowRunStatus.Failed
-    } else {
+    } else if (stepStatuses.exists(_ == WorkflowStepStatus.Pending)) {
+      // Some steps done (not all failed), some not started — workflow still in progress
       WorkflowRunStatus.Running
+    } else {
+      // All steps terminal, mix of Completed/CompletedWithErrors/Failed
+      WorkflowRunStatus.CompletedWithErrors
     }
 
   implicit val encoder: Encoder[WorkflowRunStatus] = Encoder.encodeString.contramap(_.toString)
