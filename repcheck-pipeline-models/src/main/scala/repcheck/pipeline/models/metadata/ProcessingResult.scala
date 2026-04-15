@@ -12,7 +12,7 @@ sealed trait ProcessingResult {
   def isSkipped: Boolean
 
   def toResultDO[F[_]: Sync](
-    runId: UUID,
+    stepRunId: Long,
     correlationId: UUID,
     entityType: String,
   ): F[ProcessingResultDO]
@@ -28,14 +28,14 @@ object ProcessingResult {
     override def isSkipped: Boolean   = false
 
     override def toResultDO[F[_]: Sync](
-      runId: UUID,
+      stepRunId: Long,
       correlationId: UUID,
       entityType: String,
     ): F[ProcessingResultDO] =
       Sync[F].delay {
         ProcessingResultDO(
-          resultId = UUID.randomUUID(),
-          runId = runId,
+          id = 0L,
+          stepRunId = stepRunId,
           correlationId = correlationId,
           entityType = entityType,
           entityId = entityId,
@@ -55,14 +55,14 @@ object ProcessingResult {
     override def isSkipped: Boolean   = false
 
     override def toResultDO[F[_]: Sync](
-      runId: UUID,
+      stepRunId: Long,
       correlationId: UUID,
       entityType: String,
     ): F[ProcessingResultDO] =
       Sync[F].delay {
         ProcessingResultDO(
-          resultId = UUID.randomUUID(),
-          runId = runId,
+          id = 0L,
+          stepRunId = stepRunId,
           correlationId = correlationId,
           entityType = entityType,
           entityId = entityId,
@@ -82,14 +82,14 @@ object ProcessingResult {
     override def isSkipped: Boolean   = true
 
     override def toResultDO[F[_]: Sync](
-      runId: UUID,
+      stepRunId: Long,
       correlationId: UUID,
       entityType: String,
     ): F[ProcessingResultDO] =
       Sync[F].delay {
         ProcessingResultDO(
-          resultId = UUID.randomUUID(),
-          runId = runId,
+          id = 0L,
+          stepRunId = stepRunId,
           correlationId = correlationId,
           entityType = entityType,
           entityId = entityId,

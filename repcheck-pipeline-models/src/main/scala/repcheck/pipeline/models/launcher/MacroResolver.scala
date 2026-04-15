@@ -10,9 +10,9 @@ object MacroResolver {
       { m =>
         val key = m.group(1)
         val replacement = key match {
-          case "run_id"    => context.runId.toString
-          case "date"      => context.date
-          case "timestamp" => context.timestamp.toString
+          case "workflow_run_id" => context.workflowRunId.toString
+          case "date"            => context.date
+          case "timestamp"       => context.timestamp.toString
           case fieldRef if fieldRef.startsWith("message.") =>
             val fieldName = fieldRef.stripPrefix("message.")
             context.messagePayload.getOrElse(fieldName, m.matched)

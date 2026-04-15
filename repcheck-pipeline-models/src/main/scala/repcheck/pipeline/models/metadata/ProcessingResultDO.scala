@@ -7,8 +7,8 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder}
 
 final case class ProcessingResultDO(
-  resultId: UUID,
-  runId: UUID,
+  id: Long,
+  stepRunId: Long,
   correlationId: UUID,
   entityType: String,
   entityId: String,
