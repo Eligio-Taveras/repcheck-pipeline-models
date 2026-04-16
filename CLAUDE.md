@@ -264,6 +264,7 @@ docs/architecture/SCALA_CODE_PATTERNS.md (index — follow TOC to specific subse
 - **GCP auth in CI**: Workload Identity Federation (keyless OIDC). No service account JSON keys.
 - **Promotion**: Dev → Staging → Prod. Auto-deploy to dev on merge. Manual gate before prod.
 - **No `@nowarn`**: Never suppress compiler warnings with `@nowarn` or similar annotations. Always find and apply the real fix — use the correct non-deprecated API, proper types, or refactor the code. If a library deprecates a method, migrate to its replacement.
+- **No `SELECT *`**: Never use `SELECT *` in Doobie queries. Always list columns explicitly in the order matching the target case class constructor. `SELECT *` returns columns in physical table order, which may not match the case class field order (e.g., when columns were added via `ALTER TABLE ADD COLUMN`). Doobie maps columns positionally, so a mismatch causes silent type errors at runtime.
 - **Schema design — denormalize, no JSONB**: Always denormalize tables. Avoid JSONB in structured schemas. The only acceptable use of JSONB is when you genuinely cannot predict the object shape being stored and expect a wide variety of structures. When tempted to use JSONB, normalize into separate tables with proper columns and foreign keys instead.
 - **Pre-push CI checks — MANDATORY**: Never push or create a PR without running CI checks first. Use the provided shell functions (source `scripts/ci-functions.sh`):
   - `CreatePR "title" "body"` — runs all CI checks, pushes, creates the PR. Use this for new PRs.
@@ -276,7 +277,7 @@ docs/architecture/SCALA_CODE_PATTERNS.md (index — follow TOC to specific subse
 
 | Concern | Technology |
 |---------|-----------|
-| Language | Scala 3.4.1 |
+| Language | Scala 3.7.3 |
 | Effect system | Cats Effect (tagless final) |
 | HTTP | http4s Ember |
 | JSON | Circe (semi-auto derivation) |
