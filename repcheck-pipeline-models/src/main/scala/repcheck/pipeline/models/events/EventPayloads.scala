@@ -45,9 +45,33 @@ object DecompositionCompletedEvent {
   implicit val decoder: Decoder[DecompositionCompletedEvent] = deriveDecoder[DecompositionCompletedEvent]
 }
 
+/**
+ * Published when a vote is recorded or updated by the votes-pipeline.
+ *
+ * Carries canonical natural keys for both the vote itself and, when applicable, the bill the vote is linked to.
+ * Downstream consumers (e.g. the scoring engine) use these natural keys to look up the vote and bill rows without
+ * reinventing the key formats.
+ *
+ * @param voteNaturalKey
+ *   Canonical natural key for the vote. Format: `s"$congress-$chamber-$session-$rollCallNumber"`, where `chamber`
+ *   preserves Congress.gov API casing ("House" / "Senate"). Example: `"119-House-1-17"`. Every vote has this — never
+ *   empty.
+ * @param billNaturalKey
+ *   Canonical natural key for the linked bill when the vote is bill-linked; `None` for procedural votes (motions to
+ *   adjourn, quorum calls, etc.). Format matches the natural-key format used by the bills-pipeline (e.g.
+ *   `"119-HR-30"`). Pipeline-models treats this as an opaque round-trip string.
+ * @param chamber
+ *   Chamber that cast the vote, in Congress.gov API casing ("House" / "Senate").
+ * @param date
+ *   Timestamp of the roll-call vote.
+ * @param congress
+ *   Congress number (e.g. 119).
+ * @param isUpdate
+ *   `true` when this event reports an update to a previously published vote; `false` for first-time publication.
+ */
 final case class VoteRecordedEvent(
-  voteId: String,
-  naturalKey: Option[String],
+  voteNaturalKey: String,
+  billNaturalKey: Option[String],
   chamber: String,
   date: Instant,
   congress: Int,

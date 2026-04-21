@@ -40,7 +40,8 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   }
 
   "VoteRecordedEvent" should "round-trip through JSON" in {
-    val event  = VoteRecordedEvent("vote-123", Some("hr-1"), "House", Instant.parse("2024-01-15T10:30:00Z"), 118, false)
+    val event =
+      VoteRecordedEvent("119-House-1-17", Some("119-HR-30"), "House", Instant.parse("2024-01-15T10:30:00Z"), 118, false)
     val json   = event.asJson.noSpaces
     val result = decode[VoteRecordedEvent](json)
     result shouldBe Right(event)
@@ -109,12 +110,12 @@ class EventsSpec extends AnyFlatSpec with Matchers {
 
   // ── Optional field tests ──
 
-  "VoteRecordedEvent" should "serialize with None naturalKey for procedural votes" in {
-    val event   = VoteRecordedEvent("vote-proc-1", None, "Senate", Instant.parse("2024-03-10T14:00:00Z"), 118, false)
+  "VoteRecordedEvent" should "serialize with None billNaturalKey for procedural votes" in {
+    val event   = VoteRecordedEvent("118-Senate-2-3", None, "Senate", Instant.parse("2024-03-10T14:00:00Z"), 118, false)
     val json    = event.asJson.noSpaces
     val decoded = decode[VoteRecordedEvent](json)
     val _       = decoded shouldBe Right(event)
-    decoded.fold(_ => fail("decode failed"), _.naturalKey shouldBe None)
+    decoded.fold(_ => fail("decode failed"), _.billNaturalKey shouldBe None)
   }
 
   "BillTextAvailableEvent" should "serialize with None previousVersionCode for first version" in {
@@ -310,12 +311,12 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  "VoteRecordedEvent decoder" should "decode from raw JSON with naturalKey = null" in {
+  "VoteRecordedEvent decoder" should "decode from raw JSON with billNaturalKey = null" in {
     val json =
-      """{"voteId":"v-1","naturalKey":null,"chamber":"House","date":"2024-01-15T10:30:00Z","congress":118,"isUpdate":false}"""
+      """{"voteNaturalKey":"119-House-1-17","billNaturalKey":null,"chamber":"House","date":"2024-01-15T10:30:00Z","congress":118,"isUpdate":false}"""
     val result = decode[VoteRecordedEvent](json)
     val _      = result.isRight shouldBe true
-    result.foreach(_.naturalKey shouldBe None)
+    result.foreach(_.billNaturalKey shouldBe None)
   }
 
   "DailyIngestionStartEvent decoder" should "decode from raw JSON string" in {
@@ -409,7 +410,8 @@ class EventsSpec extends AnyFlatSpec with Matchers {
   }
 
   "VoteRecordedEvent decodeAccumulating" should "decode valid JSON" in {
-    val event  = VoteRecordedEvent("v-1", Some("hr-1"), "House", Instant.parse("2024-01-15T10:30:00Z"), 118, false)
+    val event =
+      VoteRecordedEvent("119-House-1-17", Some("119-HR-30"), "House", Instant.parse("2024-01-15T10:30:00Z"), 118, false)
     val json   = event.asJson
     val result = implicitly[io.circe.Decoder[VoteRecordedEvent]].decodeAccumulating(json.hcursor)
     result.isValid shouldBe true
