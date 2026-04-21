@@ -31,14 +31,12 @@ class RetryWrapper[F[_]: Temporal](
     operation.handleErrorWith { error =>
       classifier.classify(error) match {
         case ErrorClass.Systemic =>
-          Temporal[F].raiseError(
-            errorFactory(error.getMessage, error)
-          )
+          val wrapped = errorFactory(error.getMessage, error)
+          Temporal[F].raiseError(wrapped)
         case ErrorClass.Transient =>
           if (attempt >= config.maxRetries) {
-            Temporal[F].raiseError(
-              errorFactory(error.getMessage, error)
-            )
+            val wrapped = errorFactory(error.getMessage, error)
+            Temporal[F].raiseError(wrapped)
           } else {
             val delay = calculateDelay(config, attempt)
             logRetry(attempt + 1, config.maxRetries, delay, ErrorClass.Transient, error.getMessage, correlationId) *>
