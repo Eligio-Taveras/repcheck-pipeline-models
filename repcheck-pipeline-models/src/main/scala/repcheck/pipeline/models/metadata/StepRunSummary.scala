@@ -31,7 +31,12 @@ object StepRunSummary {
     completedAt: Instant,
     results: List[ProcessingResult],
   ): StepRunSummary = {
-    val succeeded = results.count(_.isSucceeded)
+    // Skipped is a successful no-op (e.g., bill_text_versions row already complete, idempotent re-delivery
+    // of a Pub/Sub message we've already processed). Roll it into itemsSucceeded so dashboards and the
+    // workflow_run_steps table reflect "this run did its job" rather than treating a healthy idempotent
+    // skip as something separate from success. itemsFailed stays strict — only ProcessingResult.Failed
+    // increments it.
+    val succeeded = results.count(r => r.isSucceeded || r.isSkipped)
     val failed    = results.count(_.isFailed)
 
     val status: WorkflowStepStatus =
