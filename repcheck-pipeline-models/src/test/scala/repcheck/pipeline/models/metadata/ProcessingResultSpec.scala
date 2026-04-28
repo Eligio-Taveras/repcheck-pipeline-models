@@ -159,7 +159,7 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
     summary.errorCounts shouldBe Map("timeout" -> 2, "auth failure" -> 1)
   }
 
-  it should "count skipped results in itemsProcessed but not in succeeded or failed" in {
+  it should "roll skipped results into itemsSucceeded (idempotent skip is a successful no-op)" in {
     val results = List(
       ProcessingResult.Succeeded("e1"),
       ProcessingResult.Skipped("e2", "duplicate"),
@@ -167,7 +167,7 @@ class ProcessingResultSpec extends AnyFlatSpec with Matchers {
     val summary = StepRunSummary.fromResults(testStepRunId, "bills-pipeline", now, completed, results)
     val _       = summary.status shouldBe WorkflowStepStatus.Completed
     val _       = summary.itemsProcessed shouldBe 2
-    val _       = summary.itemsSucceeded shouldBe 1
+    val _       = summary.itemsSucceeded shouldBe 2
     summary.itemsFailed shouldBe 0
   }
 
