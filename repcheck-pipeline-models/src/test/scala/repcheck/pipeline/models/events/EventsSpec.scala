@@ -11,6 +11,7 @@ import io.circe.syntax._
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import repcheck.shared.models.congress.amendment.AmendmentType
 
 class EventsSpec extends AnyFlatSpec with Matchers {
 
@@ -126,6 +127,63 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     decoded.fold(_ => fail("decode failed"), _.previousVersionCode shouldBe None)
   }
 
+  "AmendmentTextAvailableEvent" should "round-trip through JSON with publishedDate Some" in {
+    val correlationId = UUID.randomUUID()
+    val event = AmendmentTextAvailableEvent(
+      amendmentId = 42L,
+      naturalKey = "118-HAMDT-7",
+      congress = 118,
+      amendmentType = AmendmentType.HAMDT,
+      number = "7",
+      versionTypeCode = "SUB",
+      formatType = "HTML",
+      url = "https://example.com/text.html",
+      publishedDate = Some(Instant.parse("2024-06-01T12:00:00Z")),
+      correlationId = correlationId,
+    )
+    val json   = event.asJson.noSpaces
+    val result = decode[AmendmentTextAvailableEvent](json)
+    result shouldBe Right(event)
+  }
+
+  it should "round-trip through JSON with publishedDate None" in {
+    val correlationId = UUID.randomUUID()
+    val event = AmendmentTextAvailableEvent(
+      amendmentId = 99L,
+      naturalKey = "118-SAMDT-3",
+      congress = 118,
+      amendmentType = AmendmentType.SAMDT,
+      number = "3",
+      versionTypeCode = "MOD",
+      formatType = "PDF",
+      url = "https://example.com/text.pdf",
+      publishedDate = None,
+      correlationId = correlationId,
+    )
+    val json    = event.asJson.noSpaces
+    val decoded = decode[AmendmentTextAvailableEvent](json)
+    val _       = decoded shouldBe Right(event)
+    decoded.fold(_ => fail("decode failed"), _.publishedDate shouldBe None)
+  }
+
+  "AmendmentTextAvailableEvent decodeAccumulating" should "decode valid JSON" in {
+    val event = AmendmentTextAvailableEvent(
+      amendmentId = 1L,
+      naturalKey = "118-SUAMDT-1",
+      congress = 118,
+      amendmentType = AmendmentType.SUAMDT,
+      number = "1",
+      versionTypeCode = "SUB",
+      formatType = "HTML",
+      url = "https://example.com/text.html",
+      publishedDate = Some(Instant.parse("2024-06-01T12:00:00Z")),
+      correlationId = UUID.randomUUID(),
+    )
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[AmendmentTextAvailableEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
   // ── EventTypes constant verification ──
 
   "EventTypes" should "have correct BillTextAvailable value" in {
@@ -166,6 +224,10 @@ class EventsSpec extends AnyFlatSpec with Matchers {
 
   it should "have correct DailyIngestionStart value" in {
     EventTypes.DailyIngestionStart shouldBe "daily.ingestion.start"
+  }
+
+  it should "have correct AmendmentTextAvailable value" in {
+    EventTypes.AmendmentTextAvailable shouldBe "amendment.text.available"
   }
 
   // ── PipelineEvent field verification ──
@@ -461,11 +523,12 @@ class EventsSpec extends AnyFlatSpec with Matchers {
 
   // ── EventTypes.allEventTypes ──
 
-  "EventTypes.allEventTypes" should "contain all 10 known event types" in {
-    val _ = EventTypes.allEventTypes.size shouldBe 10
+  "EventTypes.allEventTypes" should "contain all 11 known event types" in {
+    val _ = EventTypes.allEventTypes.size shouldBe 11
     val _ = EventTypes.allEventTypes should contain("bill.text.available")
     val _ = EventTypes.allEventTypes should contain("vote.recorded")
-    EventTypes.allEventTypes should contain("scoring.user.completed")
+    val _ = EventTypes.allEventTypes should contain("scoring.user.completed")
+    EventTypes.allEventTypes should contain("amendment.text.available")
   }
 
   // ── Effectful factory ──

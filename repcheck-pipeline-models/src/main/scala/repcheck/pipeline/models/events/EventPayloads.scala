@@ -6,6 +6,8 @@ import java.util.UUID
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder}
 
+import repcheck.shared.models.congress.amendment.AmendmentType
+
 final case class BillTextAvailableEvent(
   naturalKey: String,
   congress: Int,
@@ -18,6 +20,31 @@ final case class BillTextAvailableEvent(
 object BillTextAvailableEvent {
   implicit val encoder: Encoder[BillTextAvailableEvent] = deriveEncoder[BillTextAvailableEvent]
   implicit val decoder: Decoder[BillTextAvailableEvent] = deriveDecoder[BillTextAvailableEvent]
+}
+
+/**
+ * Published when a new amendment text version is detected by the amendments-pipeline. Downstream consumers (e.g.
+ * amendment-text-pipeline) fetch the URL and persist the text.
+ *
+ * Completion is signaled by `amendment_text_versions.fetched_at IS NOT NULL`; there is no separate
+ * AmendmentTextIngested event.
+ */
+final case class AmendmentTextAvailableEvent(
+  amendmentId: Long,
+  naturalKey: String,
+  congress: Int,
+  amendmentType: AmendmentType,
+  number: String,
+  versionTypeCode: String,
+  formatType: String,
+  url: String,
+  publishedDate: Option[Instant],
+  correlationId: UUID,
+)
+
+object AmendmentTextAvailableEvent {
+  implicit val encoder: Encoder[AmendmentTextAvailableEvent] = deriveEncoder[AmendmentTextAvailableEvent]
+  implicit val decoder: Decoder[AmendmentTextAvailableEvent] = deriveDecoder[AmendmentTextAvailableEvent]
 }
 
 final case class BillTextIngestedEvent(
