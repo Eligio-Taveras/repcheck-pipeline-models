@@ -11,6 +11,7 @@ object EventTypes {
   val ScoringUserRequested: String   = "scoring.user.requested"
   val ScoringUserCompleted: String   = "scoring.user.completed"
   val DailyIngestionStart: String    = "daily.ingestion.start"
+  val AmendmentTextAvailable: String = "amendment.text.available"
 
   val allEventTypes: Set[String] = Set(
     BillTextAvailable,
@@ -23,6 +24,7 @@ object EventTypes {
     ScoringUserRequested,
     ScoringUserCompleted,
     DailyIngestionStart,
+    AmendmentTextAvailable,
   )
 
 }

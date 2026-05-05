@@ -19,6 +19,8 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     Tables.VoteHistory,
     Tables.VoteHistoryPositions,
     Tables.Amendments,
+    Tables.AmendmentTextVersions,
+    Tables.AmendmentTextChunks,
     Tables.Committees,
     Tables.CommitteeMembers,
     Tables.BillCommitteeReferrals,
@@ -64,8 +66,8 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     Tables.EventLog,
   )
 
-  "Tables" should "have exactly 55 constants" in {
-    allTableNames.size shouldBe 55
+  "Tables" should "have exactly 57 constants" in {
+    allTableNames.size shouldBe 57
   }
 
   it should "have all non-empty table name values" in {
@@ -81,6 +83,8 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     val _ = Tables.Bills shouldBe "bills"
     val _ = Tables.Votes shouldBe "votes"
     val _ = Tables.Amendments shouldBe "amendments"
+    val _ = Tables.AmendmentTextVersions shouldBe "amendment_text_versions"
+    val _ = Tables.AmendmentTextChunks shouldBe "amendment_text_chunks"
     val _ = Tables.Committees shouldBe "committees"
     val _ = Tables.Scores shouldBe "scores"
     val _ = Tables.Users shouldBe "users"
@@ -141,7 +145,14 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     val _ = PipelineEventTypes.UserProfileUpdated shouldBe EventTypes.UserProfileUpdated
     val _ = PipelineEventTypes.ScoringUserRequested shouldBe EventTypes.ScoringUserRequested
     val _ = PipelineEventTypes.ScoringUserCompleted shouldBe EventTypes.ScoringUserCompleted
-    PipelineEventTypes.DailyIngestionStart shouldBe EventTypes.DailyIngestionStart
+    val _ = PipelineEventTypes.DailyIngestionStart shouldBe EventTypes.DailyIngestionStart
+    PipelineEventTypes.AmendmentTextAvailable shouldBe EventTypes.AmendmentTextAvailable
+  }
+
+  // ── Constants object ──
+
+  "Constants.MinAmendmentCongress" should "be 102" in {
+    Constants.MinAmendmentCongress shouldBe 102
   }
 
 }

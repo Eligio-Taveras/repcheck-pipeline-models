@@ -13,6 +13,8 @@ object Tables {
   val VoteHistory: String                 = "vote_history"
   val VoteHistoryPositions: String        = "vote_history_positions"
   val Amendments: String                  = "amendments"
+  val AmendmentTextVersions: String       = "amendment_text_versions"
+  val AmendmentTextChunks: String         = "amendment_text_chunks"
   val Committees: String                  = "committees"
   val CommitteeMembers: String            = "committee_members"
   val BillCommitteeReferrals: String      = "bill_committee_referrals"
