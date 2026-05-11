@@ -174,3 +174,17 @@ object DailyIngestionStartEvent {
   implicit val encoder: Encoder[DailyIngestionStartEvent] = deriveEncoder[DailyIngestionStartEvent]
   implicit val decoder: Decoder[DailyIngestionStartEvent] = deriveDecoder[DailyIngestionStartEvent]
 }
+
+final case class CommitteeMembershipRefreshedEvent(
+  committeeCode: String
+)
+
+object CommitteeMembershipRefreshedEvent {
+
+  implicit val encoder: Encoder[CommitteeMembershipRefreshedEvent] =
+    deriveEncoder[CommitteeMembershipRefreshedEvent]
+
+  implicit val decoder: Decoder[CommitteeMembershipRefreshedEvent] =
+    deriveDecoder[CommitteeMembershipRefreshedEvent]
+
+}

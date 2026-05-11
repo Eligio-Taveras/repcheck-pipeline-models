@@ -1,17 +1,18 @@
 package repcheck.pipeline.models.events
 
 object EventTypes {
-  val BillTextAvailable: String      = "bill.text.available"
-  val BillTextIngested: String       = "bill.text.ingested"
-  val DecompositionCompleted: String = "bill.decomposition.completed"
-  val VoteRecorded: String           = "vote.recorded"
-  val AnalysisCompleted: String      = "analysis.completed"
-  val MemberUpdated: String          = "member.updated"
-  val UserProfileUpdated: String     = "user.profile.updated"
-  val ScoringUserRequested: String   = "scoring.user.requested"
-  val ScoringUserCompleted: String   = "scoring.user.completed"
-  val DailyIngestionStart: String    = "daily.ingestion.start"
-  val AmendmentTextAvailable: String = "amendment.text.available"
+  val BillTextAvailable: String            = "bill.text.available"
+  val BillTextIngested: String             = "bill.text.ingested"
+  val DecompositionCompleted: String       = "bill.decomposition.completed"
+  val VoteRecorded: String                 = "vote.recorded"
+  val AnalysisCompleted: String            = "analysis.completed"
+  val MemberUpdated: String                = "member.updated"
+  val UserProfileUpdated: String           = "user.profile.updated"
+  val ScoringUserRequested: String         = "scoring.user.requested"
+  val ScoringUserCompleted: String         = "scoring.user.completed"
+  val DailyIngestionStart: String          = "daily.ingestion.start"
+  val AmendmentTextAvailable: String       = "amendment.text.available"
+  val CommitteeMembershipRefreshed: String = "committee.membership.refreshed"
 
   val allEventTypes: Set[String] = Set(
     BillTextAvailable,
@@ -25,6 +26,7 @@ object EventTypes {
     ScoringUserCompleted,
     DailyIngestionStart,
     AmendmentTextAvailable,
+    CommitteeMembershipRefreshed,
   )
 
 }
