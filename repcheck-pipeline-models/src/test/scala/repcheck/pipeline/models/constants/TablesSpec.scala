@@ -146,7 +146,8 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     val _ = PipelineEventTypes.ScoringUserRequested shouldBe EventTypes.ScoringUserRequested
     val _ = PipelineEventTypes.ScoringUserCompleted shouldBe EventTypes.ScoringUserCompleted
     val _ = PipelineEventTypes.DailyIngestionStart shouldBe EventTypes.DailyIngestionStart
-    PipelineEventTypes.AmendmentTextAvailable shouldBe EventTypes.AmendmentTextAvailable
+    val _ = PipelineEventTypes.AmendmentTextAvailable shouldBe EventTypes.AmendmentTextAvailable
+    PipelineEventTypes.CommitteeMembershipRefreshed shouldBe EventTypes.CommitteeMembershipRefreshed
   }
 
   // ── Constants object ──

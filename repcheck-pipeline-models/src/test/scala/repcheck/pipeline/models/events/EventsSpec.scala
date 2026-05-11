@@ -96,6 +96,13 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     result shouldBe Right(event)
   }
 
+  "CommitteeMembershipRefreshedEvent" should "round-trip through JSON" in {
+    val event  = CommitteeMembershipRefreshedEvent("HSAG00")
+    val json   = event.asJson.noSpaces
+    val result = decode[CommitteeMembershipRefreshedEvent](json)
+    result shouldBe Right(event)
+  }
+
   // ── PipelineEvent envelope round-trip ──
 
   "PipelineEvent[BillTextAvailableEvent]" should "round-trip through JSON" in {
@@ -228,6 +235,10 @@ class EventsSpec extends AnyFlatSpec with Matchers {
 
   it should "have correct AmendmentTextAvailable value" in {
     EventTypes.AmendmentTextAvailable shouldBe "amendment.text.available"
+  }
+
+  it should "have correct CommitteeMembershipRefreshed value" in {
+    EventTypes.CommitteeMembershipRefreshed shouldBe "committee.membership.refreshed"
   }
 
   // ── PipelineEvent field verification ──
@@ -397,6 +408,12 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     result shouldBe Right(MemberUpdatedEvent("M000355"))
   }
 
+  "CommitteeMembershipRefreshedEvent decoder" should "decode from raw JSON string" in {
+    val json   = """{"committeeCode":"HSAG00"}"""
+    val result = decode[CommitteeMembershipRefreshedEvent](json)
+    result shouldBe Right(CommitteeMembershipRefreshedEvent("HSAG00"))
+  }
+
   // ── EventType validation (criteria 10, 11, 16) ──
 
   "PipelineEvent.validatedDecoder" should "decode a valid eventType successfully" in {
@@ -521,14 +538,22 @@ class EventsSpec extends AnyFlatSpec with Matchers {
     result.isValid shouldBe true
   }
 
+  "CommitteeMembershipRefreshedEvent decodeAccumulating" should "decode valid JSON" in {
+    val event  = CommitteeMembershipRefreshedEvent("SSAP00")
+    val json   = event.asJson
+    val result = implicitly[io.circe.Decoder[CommitteeMembershipRefreshedEvent]].decodeAccumulating(json.hcursor)
+    result.isValid shouldBe true
+  }
+
   // ── EventTypes.allEventTypes ──
 
-  "EventTypes.allEventTypes" should "contain all 11 known event types" in {
-    val _ = EventTypes.allEventTypes.size shouldBe 11
+  "EventTypes.allEventTypes" should "contain all 12 known event types" in {
+    val _ = EventTypes.allEventTypes.size shouldBe 12
     val _ = EventTypes.allEventTypes should contain("bill.text.available")
     val _ = EventTypes.allEventTypes should contain("vote.recorded")
     val _ = EventTypes.allEventTypes should contain("scoring.user.completed")
-    EventTypes.allEventTypes should contain("amendment.text.available")
+    val _ = EventTypes.allEventTypes should contain("amendment.text.available")
+    EventTypes.allEventTypes should contain("committee.membership.refreshed")
   }
 
   // ── Effectful factory ──
