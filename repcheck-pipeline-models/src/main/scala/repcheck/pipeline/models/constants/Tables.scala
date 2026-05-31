@@ -7,6 +7,7 @@ object Tables {
   val Bills: String                       = "bills"
   val BillCosponsors: String              = "bill_cosponsors"
   val BillSubjects: String                = "bill_subjects"
+  val BillSummaries: String               = "bill_summaries"
   val BillTextVersions: String            = "bill_text_versions"
   val Votes: String                       = "votes"
   val VotePositions: String               = "vote_positions"
