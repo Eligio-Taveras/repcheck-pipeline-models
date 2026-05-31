@@ -13,6 +13,7 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     Tables.Bills,
     Tables.BillCosponsors,
     Tables.BillSubjects,
+    Tables.BillSummaries,
     Tables.BillTextVersions,
     Tables.Votes,
     Tables.VotePositions,
@@ -66,8 +67,8 @@ class TablesSpec extends AnyFlatSpec with Matchers {
     Tables.EventLog,
   )
 
-  "Tables" should "have exactly 57 constants" in {
-    allTableNames.size shouldBe 57
+  "Tables" should "have exactly 58 constants" in {
+    allTableNames.size shouldBe 58
   }
 
   it should "have all non-empty table name values" in {
@@ -81,6 +82,7 @@ class TablesSpec extends AnyFlatSpec with Matchers {
   it should "match expected values for key constants" in {
     val _ = Tables.Members shouldBe "members"
     val _ = Tables.Bills shouldBe "bills"
+    val _ = Tables.BillSummaries shouldBe "bill_summaries"
     val _ = Tables.Votes shouldBe "votes"
     val _ = Tables.Amendments shouldBe "amendments"
     val _ = Tables.AmendmentTextVersions shouldBe "amendment_text_versions"
