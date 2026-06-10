@@ -4,8 +4,9 @@ import pureconfig.{ConfigReader, ConfigSource}
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import repcheck.pipeline.models.errors.RetryConfig
 import repcheck.shared.models.congress.vote.VoteType
+
+import com.repcheck.utils.errors.RetryConfig
 
 final case class TestAppConfig(x: Int) derives ConfigReader
 

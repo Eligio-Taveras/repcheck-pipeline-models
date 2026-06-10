@@ -2,7 +2,7 @@ package repcheck.pipeline.models.config
 
 import pureconfig.ConfigReader
 
-import repcheck.pipeline.models.errors.RetryConfig
+import com.repcheck.utils.errors.RetryConfig
 
 final case class PipelineConfig[T](
   parallelism: Int = 4,
