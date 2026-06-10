@@ -31,6 +31,7 @@ lazy val commonSettings = Seq(
     envCreds.orElse(fileCreds).toSeq
   },
   resolvers += "GitHub Packages - shared-models" at "https://maven.pkg.github.com/Eligio-Taveras/repcheck-shared-models",
+  resolvers += "GitHub Packages - repcheck-utils" at "https://maven.pkg.github.com/Eligio-Taveras/repcheck-utils",
   libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.2.18" % Test
   ),
@@ -76,6 +77,7 @@ lazy val repcheckPipelineModels = (project in file("repcheck-pipeline-models"))
     libraryDependencies ++= circe ++ pureConfig ++ fs2 ++ doobie ++ catsEffect ++ testDeps,
     libraryDependencies += "com.h2database" % "h2" % "2.2.224" % Test,
     libraryDependencies += "com.repcheck" %% "repchecksharedmodels" % "0.1.15",
+    libraryDependencies += "com.repcheck" %% "repcheck-utils" % "0.1.1", // base behaviors (errors, template)
     // Circe semi-auto derivation for large case classes
     scalacOptions += "-Xmax-inlines:64",
     exceptionUniquenessRootPackages := Seq("com.repcheck", "repcheck")
